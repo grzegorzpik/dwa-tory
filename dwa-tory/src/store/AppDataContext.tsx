@@ -49,27 +49,37 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      // Seed wykonuje się co najwyżej raz na cały cykl życia modułu (patrz
-      // ensureInitialized) — bezpieczne nawet gdy ten efekt odpali się
-      // dwukrotnie (React StrictMode w developmencie).
-      await db.ensureInitialized(async () => {
-        const existing = await db.getAllPeople();
-        if (existing.length > 0) return;
-        await Promise.all(seedPeople().map(db.putPerson));
-        await Promise.all(seedGoals().map(db.putGoal));
-        await db.setCurrentUserId(CURRENT_USER_ID);
-        await db.putSettings(seedSettings());
-      });
+      try {
+        // Seed wykonuje się co najwyżej raz na cały cykl życia modułu (patrz
+        // ensureInitialized) — bezpieczne nawet gdy ten efekt odpali się
+        // dwukrotnie (React StrictMode w developmencie).
+        await db.ensureInitialized(async () => {
+          const existing = await db.getAllPeople();
+          if (existing.length > 0) return;
+          await Promise.all(seedPeople().map(db.putPerson));
+          await Promise.all(seedGoals().map(db.putGoal));
+          await db.setCurrentUserId(CURRENT_USER_ID);
+          await db.putSettings(seedSettings());
+        });
 
-      const [allPeople, myGoals, savedSettings] = await Promise.all([
-        db.getAllPeople(),
-        db.getGoalsForPerson(CURRENT_USER_ID),
-        db.getSettings(),
-      ]);
-      setPeople(Object.fromEntries(allPeople.map((p) => [p.id, p])));
-      setGoals(myGoals);
-      if (savedSettings) setSettings(savedSettings);
-      setLoading(false);
+        const [allPeople, myGoals, savedSettings] = await Promise.all([
+          db.getAllPeople(),
+          db.getGoalsForPerson(CURRENT_USER_ID),
+          db.getSettings(),
+        ]);
+        setPeople(Object.fromEntries(allPeople.map((p) => [p.id, p])));
+        setGoals(myGoals);
+        if (savedSettings) setSettings(savedSettings);
+      } catch (e) {
+        // Awaryjnie: pokaż appkę z samymi danymi w pamięci zamiast zawiesić
+        // ekran ładowania, gdyby storage lokalnie zawiódł w nieoczekiwany sposób.
+        console.error('Nie udało się wczytać danych lokalnych', e);
+        const fallbackPeople = seedPeople();
+        setPeople(Object.fromEntries(fallbackPeople.map((p) => [p.id, p])));
+        setGoals(seedGoals().filter((g) => g.personId === CURRENT_USER_ID));
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 

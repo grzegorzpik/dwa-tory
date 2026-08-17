@@ -21,9 +21,53 @@ const DB_NAME = 'dwa-tory';
 const DB_VERSION = 1;
 const CURRENT_USER_KEY = 'currentUserId';
 
-let dbPromise: Promise<IDBPDatabase<DwaToryDB>> | null = null;
+/**
+ * Część otoczeń (prywatne przeglądanie starszych przeglądarek, mocno
+ * odizolowane iframe'y bez podpiętego IndexedDB) potrafi odrzucić
+ * `indexedDB.open`. Zamiast wywalać całą appkę na starcie, spadamy wtedy na
+ * magazyn w pamięci — appka wciąż działa w ramach sesji, po prostu nic nie
+ * przetrwa twardego przeładowania. Prawdziwe środowisko docelowe (przeglądarka
+ * na telefonie) ma normalne IndexedDB i tej ścieżki nigdy nie dotknie.
+ */
+class MemoryStore {
+  private stores = new Map<string, Map<string, unknown>>();
 
-const getDb = () => {
+  private store(name: string) {
+    let s = this.stores.get(name);
+    if (!s) {
+      s = new Map();
+      this.stores.set(name, s);
+    }
+    return s;
+  }
+
+  async get(storeName: string, key: string) {
+    return this.store(storeName).get(key);
+  }
+
+  async getAll(storeName: string) {
+    return Array.from(this.store(storeName).values());
+  }
+
+  async getAllFromIndex(storeName: string, indexName: string, value: string) {
+    return Array.from(this.store(storeName).values()).filter((v) => (v as Record<string, unknown>)[indexName] === value);
+  }
+
+  async put(storeName: string, value: unknown, key?: string) {
+    const k = key ?? ((value as Record<string, unknown>).id as string);
+    this.store(storeName).set(k, value);
+  }
+
+  async delete(storeName: string, key: string) {
+    this.store(storeName).delete(key);
+  }
+}
+
+type Db = IDBPDatabase<DwaToryDB> | MemoryStore;
+
+let dbPromise: Promise<Db> | null = null;
+
+const getDb = (): Promise<Db> => {
   if (!dbPromise) {
     dbPromise = openDB<DwaToryDB>(DB_NAME, DB_VERSION, {
       upgrade(db) {
@@ -44,6 +88,9 @@ const getDb = () => {
           db.createObjectStore('meta');
         }
       },
+    }).catch((e) => {
+      console.warn('IndexedDB niedostępne, przechodzę na magazyn w pamięci (dane nie przetrwają przeładowania):', e);
+      return new MemoryStore();
     });
   }
   return dbPromise;
@@ -52,34 +99,52 @@ const getDb = () => {
 // --- people -----------------------------------------------------------
 
 export async function getAllPeople(): Promise<Person[]> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   return db.getAll('people');
 }
 
 export async function getPerson(id: string): Promise<Person | undefined> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   return db.get('people', id);
 }
 
 export async function putPerson(person: Person): Promise<void> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   await db.put('people', person);
 }
 
 // --- goals --------------------------------------------------------------
 
 export async function getGoalsForPerson(personId: string): Promise<Goal[]> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   return db.getAllFromIndex('goals', 'personId', personId);
 }
 
 export async function putGoal(goal: Goal): Promise<void> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   await db.put('goals', goal);
 }
 
 export async function deleteGoal(id: string): Promise<void> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   await db.delete('goals', id);
 }
 
@@ -88,36 +153,54 @@ export async function deleteGoal(id: string): Promise<void> {
 const SETTINGS_KEY = 'app';
 
 export async function getSettings(): Promise<AppSettings | undefined> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   return db.get('settings', SETTINGS_KEY);
 }
 
 export async function putSettings(settings: AppSettings): Promise<void> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   await db.put('settings', settings, SETTINGS_KEY);
 }
 
 // --- notifications ----------------------------------------------------
 
 export async function getAllNotifications(): Promise<AppNotification[]> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   return db.getAll('notifications');
 }
 
 export async function putNotification(n: AppNotification): Promise<void> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   await db.put('notifications', n);
 }
 
 // --- meta (bieżący użytkownik urządzenia) ------------------------------
 
 export async function getCurrentUserId(): Promise<string | undefined> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   return db.get('meta', CURRENT_USER_KEY);
 }
 
 export async function setCurrentUserId(id: string): Promise<void> {
-  const db = await getDb();
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
   await db.put('meta', id, CURRENT_USER_KEY);
 }
 
