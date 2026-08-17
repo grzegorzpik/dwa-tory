@@ -55,7 +55,7 @@ function AppShell() {
               <NotificationsPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
               {tab === 'dziennik' && <Dziennik onEditGoal={(g) => setGoalEditor(g)} />}
               {tab === 'cele' && <Cele onNewGoal={() => setGoalEditor('new')} onEditGoal={(g) => setGoalEditor(g)} />}
-              {tab === 'kalendarz' && <Kalendarz />}
+              {tab === 'kalendarz' && <Kalendarz onEditGoal={(g) => setGoalEditor(g)} onGoToDziennik={() => goToTab('dziennik')} />}
               {tab === 'profil' && <Profil />}
             </div>
 

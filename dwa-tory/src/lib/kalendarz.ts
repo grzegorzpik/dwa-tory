@@ -87,3 +87,42 @@ export function calendarMilestonesFor(peopleWithGoals: { person: Person; goals: 
     ),
   );
 }
+
+export interface DayEntry {
+  goal: Goal;
+  person: Person;
+  isOwn: boolean;
+  status?: 'done' | 'moved' | 'skipped';
+  milestoneLabel?: string;
+  /** Tylko gdy isToday i cel nie ma jeszcze wpisu na dziś — "dziś" nie ma wyglądać pusto, zanim coś się odhaczy. */
+  livePending?: boolean;
+}
+
+/**
+ * Co się działo (albo dzieje) z widocznymi celami danego dnia — napędza
+ * podgląd po kliknięciu w dzień Kalendarza. Dla dni innych niż dziś
+ * pokazujemy wyłącznie to, co realnie się zdarzyło (wpis w historii) albo
+ * kamień milowy — żaden dzień bez danych nie dostaje zmyślonego wiersza.
+ */
+export function dayEntriesFor(
+  peopleWithGoals: { person: Person; goals: Goal[]; isOwn: boolean }[],
+  dateKey: string,
+  referenceYear: number,
+  isToday: boolean,
+): DayEntry[] {
+  const entries: DayEntry[] = [];
+  for (const { person, goals, isOwn } of peopleWithGoals) {
+    for (const g of goals) {
+      const status = g.history?.[dateKey];
+      const milestone = milestonesFor(g).find((m) => {
+        const parsed = parseShortDate(m.date, referenceYear);
+        return parsed !== null && ymdKey(parsed) === dateKey;
+      });
+      const livePending = isToday && !status && !milestone;
+      if (status || milestone || livePending) {
+        entries.push({ goal: g, person, isOwn, status, milestoneLabel: milestone?.label, livePending });
+      }
+    }
+  }
+  return entries;
+}

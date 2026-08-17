@@ -2,13 +2,19 @@
 // Tydzień/Miesiąc, Wspólna seria (jedyny pełny gradient w apce), listy
 // "Do zrobienia"/"Zrealizowane". Codzienne nawyki bez kamieni świadomie tu
 // nie wchodzą — to widok dużych rzeczy, Dziennik jest od codzienności.
+//
+// Kliknięcie dnia (rozszerzenie na prośbę użytkownika, poza spec) otwiera
+// podgląd tego dnia — patrz DayDetailModal.
 
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { Avatar } from '../components/Avatar';
+import { DayDetailModal } from '../components/DayDetailModal';
+import { GoalDetailModal } from '../components/GoalDetailModal';
 import { MonthCalendar } from '../components/MonthCalendar';
 import {
   calendarMilestonesFor,
+  dayEntriesFor,
   dayStatusFor,
   milestoneDateKey,
   mutualStreakDays,
@@ -19,7 +25,7 @@ import {
 import { addDays, DAY_LABELS, MONTH_NAMES, monthAbbr, startOfWeek, today, ymdKey, type Ymd } from '../lib/calendarUtils';
 import { useAppData } from '../store/AppDataContext';
 import { C } from '../theme';
-import type { Person } from '../types';
+import type { Goal, Person } from '../types';
 
 type ViewMode = 'mine' | 'partner' | 'both';
 type Period = 'week' | 'month';
@@ -30,24 +36,29 @@ function colorForStatus(status: DayStatus, personColor: string): string {
   return C.surface2;
 }
 
-export function Kalendarz() {
+const WEEKDAY_NAMES = ['poniedziałek', 'wtorek', 'środę', 'czwartek', 'piątek', 'sobotę', 'niedzielę'];
+
+export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: Goal) => void; onGoToDziennik: () => void }) {
   const { currentUser, partner, goals, partnerGoals, settings } = useAppData();
   const [view, setView] = useState<ViewMode>(partner ? settings.defaultCalendarView : 'mine');
   const [period, setPeriod] = useState<Period>(settings.defaultCalendarPeriod);
   const [anchor, setAnchor] = useState<Ymd>(today());
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [showAllDone, setShowAllDone] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
 
   const t = today();
+  const todayKey = ymdKey(t);
   const myVisible = visibleGoals(goals, true);
   const partnerVisible = partner ? visibleGoals(partnerGoals, false) : [];
 
   const showMine = view === 'mine' || view === 'both';
   const showPartner = (view === 'partner' || view === 'both') && !!partner;
 
-  const peopleWithGoals: { person: Person; goals: typeof goals }[] = [
-    ...(showMine ? [{ person: currentUser, goals: myVisible }] : []),
-    ...(showPartner && partner ? [{ person: partner, goals: partnerVisible }] : []),
+  const peopleWithGoals: { person: Person; goals: Goal[]; isOwn: boolean }[] = [
+    ...(showMine ? [{ person: currentUser, goals: myVisible, isOwn: true }] : []),
+    ...(showPartner && partner ? [{ person: partner, goals: partnerVisible, isOwn: false }] : []),
   ];
 
   const milestones = calendarMilestonesFor(peopleWithGoals);
@@ -58,8 +69,32 @@ export function Kalendarz() {
 
   const milestonesByDay = (dateKey: string) => milestones.filter((m) => milestoneDateKey(m, t.year) === dateKey);
 
+  const selectedDayEntries = selectedDay ? dayEntriesFor(peopleWithGoals, selectedDay, t.year, selectedDay === todayKey) : [];
+  const selectedDayLabel = selectedDay ? dayDetailLabel(selectedDay, todayKey) : '';
+
   return (
-    <div className="rise flex flex-col gap-3">
+    <div className="rise flex flex-col gap-3 relative min-h-full">
+      {selectedDay && (
+        <DayDetailModal
+          dateLabel={selectedDayLabel}
+          isToday={selectedDay === todayKey}
+          entries={selectedDayEntries}
+          onEntryClick={(goal) => {
+            setSelectedDay(null);
+            setSelectedGoal(goal);
+          }}
+          onGoToDziennik={onGoToDziennik}
+          onClose={() => setSelectedDay(null)}
+        />
+      )}
+      {selectedGoal && (
+        <GoalDetailModal
+          goal={selectedGoal}
+          onClose={() => setSelectedGoal(null)}
+          onEdit={selectedGoal.personId === currentUser.id ? () => { onEditGoal(selectedGoal); setSelectedGoal(null); } : undefined}
+        />
+      )}
+
       {partner && (
         <div className="flex gap-1.5">
           {([
@@ -100,9 +135,9 @@ export function Kalendarz() {
       </div>
 
       {period === 'week' ? (
-        <WeekView anchor={anchor} onAnchorChange={setAnchor} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} milestonesByDay={milestonesByDay} today={t} />
+        <WeekView anchor={anchor} onAnchorChange={setAnchor} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} milestonesByDay={milestonesByDay} today={t} onDayClick={setSelectedDay} />
       ) : (
-        <MonthView anchor={anchor} onAnchorChange={setAnchor} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} milestonesByDay={milestonesByDay} today={t} />
+        <MonthView anchor={anchor} onAnchorChange={setAnchor} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} milestonesByDay={milestonesByDay} today={t} onDayClick={setSelectedDay} />
       )}
 
       <div>
@@ -134,6 +169,19 @@ export function Kalendarz() {
       </div>
     </div>
   );
+}
+
+function dayDetailLabel(dateKey: string, todayKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const ymd: Ymd = { year: y, month: m - 1, day: d };
+  const base = `${d} ${MONTH_NAMES[m - 1].toLowerCase()} ${y}`;
+  if (dateKey === todayKey) return `Dziś, ${base}`;
+  return `${WEEKDAY_NAMES[startOfWeekIndex(ymd)]}, ${base}`;
+}
+
+function startOfWeekIndex(ymd: Ymd): number {
+  // poniedziałek=0 — spójne z resztą kalendarza (calendarUtils.isoWeekday)
+  return (new Date(ymd.year, ymd.month, ymd.day).getDay() + 6) % 7;
 }
 
 function EmptyRow({ text }: { text: string }) {
@@ -177,6 +225,7 @@ interface PeriodViewProps {
   partnerVisible: ReturnType<typeof visibleGoals>;
   milestonesByDay: (dateKey: string) => CalendarMilestone[];
   today: Ymd;
+  onDayClick: (dateKey: string) => void;
 }
 
 function DayBar({ dateKey, view, currentUser, partner, myVisible, partnerVisible }: Pick<PeriodViewProps, 'view' | 'currentUser' | 'partner' | 'myVisible' | 'partnerVisible'> & { dateKey: string }) {
@@ -191,7 +240,7 @@ function DayBar({ dateKey, view, currentUser, partner, myVisible, partnerVisible
   return <div className="rounded-full" style={{ width: 5, alignSelf: 'stretch', background: color }} />;
 }
 
-function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisible, partnerVisible, milestonesByDay, today: t }: PeriodViewProps) {
+function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisible, partnerVisible, milestonesByDay, today: t, onDayClick }: PeriodViewProps) {
   const weekStart = startOfWeek(anchor);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const sameMonth = days[0].month === days[6].month;
@@ -208,9 +257,10 @@ function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisibl
           const isToday = dateKey === ymdKey(t);
           const dayMilestones = milestonesByDay(dateKey);
           return (
-            <div
+            <button
               key={dateKey}
-              className="rounded-xl px-3 py-2 flex items-center gap-3"
+              onClick={() => onDayClick(dateKey)}
+              className="rounded-xl px-3 py-2 flex items-center gap-3 cursor-pointer text-left border-0"
               style={{ background: C.surface, border: `1px solid ${isToday ? C.text : C.line}` }}
             >
               <DayBar dateKey={dateKey} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} />
@@ -221,7 +271,7 @@ function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisibl
               <div className="flex-1 min-w-0 font-body text-[11px] truncate" style={{ color: dayMilestones.length ? C.gold : C.muted }}>
                 {dayMilestones.length > 0 ? dayMilestones.map((m) => m.label).join(', ') : '—'}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -229,7 +279,7 @@ function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisibl
   );
 }
 
-function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisible, partnerVisible, milestonesByDay, today: t }: PeriodViewProps) {
+function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisible, partnerVisible, milestonesByDay, today: t, onDayClick }: PeriodViewProps) {
   return (
     <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
       <MonthCalendar
@@ -246,12 +296,13 @@ function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisib
               ? `linear-gradient(to bottom, ${colorForStatus(dayStatusFor(myVisible, dateKey), currentUser.color)} 50%, ${colorForStatus(dayStatusFor(partnerVisible, dateKey), partner.color)} 50%)`
               : colorForStatus(dayStatusFor(view === 'partner' ? partnerVisible : myVisible, dateKey), (view === 'partner' && partner ? partner : currentUser).color);
           return (
-            <div
-              className="aspect-square rounded-md flex items-center justify-center font-body"
+            <button
+              onClick={() => onDayClick(dateKey)}
+              className="w-full aspect-square rounded-md flex items-center justify-center font-body cursor-pointer border-0"
               style={{ fontSize: 10, background: bg, color: C.text, border: `1.5px solid ${hasMilestone ? C.gold : isToday ? C.text : 'transparent'}` }}
             >
               {d}
-            </div>
+            </button>
           );
         }}
       />

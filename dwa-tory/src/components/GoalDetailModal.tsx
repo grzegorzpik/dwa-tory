@@ -19,7 +19,7 @@ const CHARACTER_LABEL: Record<Goal['character'], string> = {
   cyclicalContent: 'Cel z etapami',
 };
 
-export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose: () => void; onEdit: () => void }) {
+export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose: () => void; onEdit?: () => void }) {
   const trackColor = TYPE_COLOR[goal.type];
   const milestones = milestonesFor(goal);
   const doneCount = milestones.filter((m) => m.done).length;
@@ -120,15 +120,17 @@ export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose
           {goal.reason && <div className="font-body text-[11px] italic" style={{ color: C.muted }}>„{goal.reason}”</div>}
         </div>
 
-        <div className="px-4 pb-4 pt-2 shrink-0">
-          <button
-            onClick={onEdit}
-            className="w-full font-body text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5 border-0 cursor-pointer"
-            style={{ background: trackColor, color: '#15241F' }}
-          >
-            <Pencil size={14} /> Edytuj cel
-          </button>
-        </div>
+        {onEdit && (
+          <div className="px-4 pb-4 pt-2 shrink-0">
+            <button
+              onClick={onEdit}
+              className="w-full font-body text-sm font-semibold py-2.5 rounded-xl flex items-center justify-center gap-1.5 border-0 cursor-pointer"
+              style={{ background: trackColor, color: '#15241F' }}
+            >
+              <Pencil size={14} /> Edytuj cel
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
