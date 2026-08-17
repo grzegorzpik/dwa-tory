@@ -5,8 +5,24 @@
 
 import { PERSON_COLOR } from '../theme';
 import type { AppSettings, Goal, Person } from './../types';
-import { formatShortDate, addDays, today } from './calendarUtils';
+import { formatShortDate, addDays, today, ymdKey, type Ymd } from './calendarUtils';
 import { uuid } from './id';
+
+type HistoryStatus = 'done' | 'moved' | 'skipped';
+
+/**
+ * Historia sprzed dzisiaj (dzień 0 jest żywy w instance.curr, jeszcze nie w
+ * historii) dla demo danych — żeby Kalendarz miał na czym renderować
+ * prawdziwy, spójny obraz zamiast pustki przy pierwszym uruchomieniu.
+ */
+function seedHistory(t: Ymd, days: number, statusAt: (daysAgo: number) => HistoryStatus | undefined): Record<string, HistoryStatus> {
+  const history: Record<string, HistoryStatus> = {};
+  for (let daysAgo = 1; daysAgo <= days; daysAgo++) {
+    const status = statusAt(daysAgo);
+    if (status) history[ymdKey(addDays(t, -daysAgo))] = status;
+  }
+  return history;
+}
 
 export function seedPeople(): Person[] {
   return [
@@ -44,6 +60,7 @@ export function seedGoals(): Goal[] {
     rescheduleCount: 1,
     visibleToPartner: true,
     syncToPhoneCalendar: false,
+    history: seedHistory(t, 12, (d) => (d === 6 ? 'moved' : 'done')),
   };
 
   const reading: Goal = {
@@ -62,6 +79,7 @@ export function seedGoals(): Goal[] {
     rescheduleCount: 0,
     visibleToPartner: true,
     syncToPhoneCalendar: false,
+    history: seedHistory(t, 12, () => 'done'),
   };
 
   const gym: Goal = {
@@ -81,6 +99,7 @@ export function seedGoals(): Goal[] {
     rescheduleCount: 0,
     visibleToPartner: true,
     syncToPhoneCalendar: false,
+    history: seedHistory(t, 14, (d) => ([2, 4, 7, 9, 11, 14].includes(d) ? 'done' : undefined)),
   };
 
   const excelCourse: Goal = {
@@ -105,6 +124,7 @@ export function seedGoals(): Goal[] {
     rescheduleCount: 2,
     visibleToPartner: true,
     syncToPhoneCalendar: false,
+    history: seedHistory(t, 15, (d) => ([1, 8, 15].includes(d) ? 'done' : undefined)),
   };
   excelCourse.manualMilestoneDone = {
     [excelCourse.milestones[0].id]: true,

@@ -1,8 +1,8 @@
 // Czysta logika biznesowa celów/instancji dnia — bez Reacta, bez storage.
 // Odzwierciedla zachowanie dwa-tory-finalna.jsx (spec §9: "źródło prawdy").
 
-import { currentWeekKey } from './calendarUtils';
-import type { Goal, Milestone, MilestoneWithDone } from '../types';
+import { currentWeekKey, today, ymdKey } from './calendarUtils';
+import type { Goal, InstanceStatus, Milestone, MilestoneWithDone } from '../types';
 
 /**
  * Kamienie milowe — dwa tryby (spec §4):
@@ -15,6 +15,21 @@ export function milestonesFor(goal: Goal): MilestoneWithDone[] {
     return goal.milestones.map((m) => ({ ...m, done: goal.completedSessions! >= (m.threshold ?? Infinity) }));
   }
   return goal.milestones.map((m) => ({ ...m, done: !!goal.manualMilestoneDone?.[m.id] }));
+}
+
+/**
+ * Zapisuje dzisiejszy wynik do historii (napędza Kalendarz — spec §5.6).
+ * "plan" nigdy nie trafia do historii: brak wpisu = brak danych, nie porażka.
+ * Zapis następuje w momencie akcji, nie przez osobny silnik "przełączania
+ * dnia" — apka wciąż działa na jednym żywym "dziś" w Dzienniku, ale historia
+ * i tak jest prawdziwa dla każdego dnia, w którym faktycznie coś kliknięto.
+ */
+function logToday(goal: Goal, status: InstanceStatus): Goal['history'] {
+  const key = ymdKey(today());
+  const history = { ...(goal.history ?? {}) };
+  if (status === 'plan') delete history[key];
+  else history[key] = status;
+  return history;
 }
 
 export interface MarkDoneResult {
@@ -30,6 +45,7 @@ export function applyMarkDone(goal: Goal, note: string): MarkDoneResult {
   const updated: Goal = {
     ...goal,
     instance: { ...goal.instance, curr: { status: 'done', note } },
+    history: logToday(goal, 'done'),
     ...(hasSessions ? { completedSessions: newCount } : {}),
   };
   return { goal: updated, reachedMilestone };
@@ -41,6 +57,7 @@ export function applyUndoDone(goal: Goal): Goal {
   return {
     ...goal,
     instance: { ...goal.instance, curr: { status: 'plan', note: '' } },
+    history: logToday(goal, 'plan'),
     ...(hasSessions ? { completedSessions: Math.max(0, goal.completedSessions! - 1) } : {}),
   };
 }
@@ -75,6 +92,8 @@ export function applyMarkDoneWeekly(goal: Goal, note: string): MarkDoneResult {
       ...goal.instance,
       curr: { status: newCount >= target ? 'done' : 'plan', note, weekCount: newCount, weekKey: currentWeekKey() },
     },
+    // Dzień faktycznie odhaczony — niezależnie od tego, czy tygodniowy cel już osiągnięty.
+    history: logToday(goal, 'done'),
     ...(hasSessions ? { completedSessions: newSessions } : {}),
   };
   return { goal: updated, reachedMilestone };
@@ -90,6 +109,7 @@ export function applyUndoDoneWeekly(goal: Goal): Goal {
       ...goal.instance,
       curr: { status: newCount >= target ? 'done' : 'plan', note: '', weekCount: newCount, weekKey: currentWeekKey() },
     },
+    history: logToday(goal, 'plan'),
     ...(hasSessions ? { completedSessions: Math.max(0, goal.completedSessions! - 1) } : {}),
   };
 }
@@ -108,6 +128,7 @@ export function applySimpleMove(goal: Goal): Goal {
   return {
     ...goal,
     instance: { curr: { status: 'moved' }, next: { status: 'plan' } },
+    history: logToday(goal, 'moved'),
     rescheduleCount: goal.rescheduleCount + 1,
   };
 }
@@ -117,6 +138,7 @@ export function applyDoubleUp(goal: Goal): Goal {
   return {
     ...goal,
     instance: { curr: { status: 'moved' }, next: { status: 'plan', double: true } },
+    history: logToday(goal, 'moved'),
     rescheduleCount: goal.rescheduleCount + 1,
   };
 }
@@ -127,7 +149,7 @@ export function applyDrop(goal: Goal, which: 'curr' | 'next'): Goal {
     which === 'curr'
       ? { curr: { status: 'skipped' as const }, next: goal.instance.next }
       : { curr: { status: 'moved' as const }, next: { status: 'skipped' as const } };
-  return { ...goal, instance, rescheduleCount: goal.rescheduleCount + 1 };
+  return { ...goal, instance, history: logToday(goal, instance.curr.status), rescheduleCount: goal.rescheduleCount + 1 };
 }
 
 /** Próg ostrzeżenia o przeciążeniu na karcie celu (spec §5.3, pętla zwrotna). */

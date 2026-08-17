@@ -92,6 +92,16 @@ export interface Goal {
   rescheduleCount: number;
   visibleToPartner: boolean;
   syncToPhoneCalendar: boolean;
+  /**
+   * Historia dni, zapisywana w momencie akcji (Zrobione/przesuń/odpuść) —
+   * klucz YYYY-MM-DD, wartość = wynik tego dnia. "plan" nigdy tu nie trafia:
+   * brak wpisu = brak danych (dzień sprzed używania apki albo nieodwiedzony),
+   * nie "porażka". Napędza Kalendarz (spec §5.6) — bez pełnego silnika
+   * "przełączania dnia", którego apka jeszcze nie ma (Dziennik działa na
+   * pojedynczym żywym "dziś"); to i tak wystarcza, żeby Kalendarz pokazywał
+   * prawdziwe dane zamiast fikcyjnych.
+   */
+  history?: Record<string, 'done' | 'moved' | 'skipped'>;
 }
 
 export interface MilestoneWithDone extends Milestone {

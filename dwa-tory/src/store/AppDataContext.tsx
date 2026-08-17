@@ -28,6 +28,8 @@ interface AppDataValue {
   currentUser: Person;
   partner: Person | null;
   goals: Goal[]; // cele bieżącego użytkownika
+  /** Cele partnerki — statyczne (bez backendu jeszcze nie ma z czym synchronizować), do odczytu w Kalendarzu z egzekwowanym visibleToPartner. */
+  partnerGoals: Goal[];
   settings: AppSettings;
   justCompleted: boolean;
   celebrateAllDone: boolean;
@@ -53,6 +55,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [people, setPeople] = useState<Record<string, Person>>({});
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [partnerGoals, setPartnerGoals] = useState<Goal[]>([]);
   const [settings, setSettings] = useState<AppSettings>(seedSettings());
   const [justCompleted, setJustCompleted] = useState(false);
   const [celebrateAllDone, setCelebrateAllDone] = useState(false);
@@ -74,21 +77,26 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           await db.putSettings(seedSettings());
         });
 
-        const [allPeople, myGoals, savedSettings] = await Promise.all([
-          db.getAllPeople(),
+        const allPeople = await db.getAllPeople();
+        const partnerId = allPeople.find((p) => p.id !== CURRENT_USER_ID)?.id;
+        const [myGoals, partnerGoalsLoaded, savedSettings] = await Promise.all([
           db.getGoalsForPerson(CURRENT_USER_ID),
+          partnerId ? db.getGoalsForPerson(partnerId) : Promise.resolve([]),
           db.getSettings(),
         ]);
         setPeople(Object.fromEntries(allPeople.map((p) => [p.id, p])));
         setGoals(myGoals);
+        setPartnerGoals(partnerGoalsLoaded);
         if (savedSettings) setSettings(savedSettings);
       } catch (e) {
         // Awaryjnie: pokaż appkę z samymi danymi w pamięci zamiast zawiesić
         // ekran ładowania, gdyby storage lokalnie zawiódł w nieoczekiwany sposób.
         console.error('Nie udało się wczytać danych lokalnych', e);
         const fallbackPeople = seedPeople();
+        const fallbackGoals = seedGoals();
         setPeople(Object.fromEntries(fallbackPeople.map((p) => [p.id, p])));
-        setGoals(seedGoals().filter((g) => g.personId === CURRENT_USER_ID));
+        setGoals(fallbackGoals.filter((g) => g.personId === CURRENT_USER_ID));
+        setPartnerGoals(fallbackGoals.filter((g) => g.personId !== CURRENT_USER_ID));
       } finally {
         setLoading(false);
       }
@@ -239,6 +247,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     currentUser,
     partner,
     goals,
+    partnerGoals,
     settings,
     justCompleted,
     celebrateAllDone,

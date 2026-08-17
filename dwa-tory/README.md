@@ -11,15 +11,24 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [x] 2. Dane lokalne — model, IndexedDB, tryb offline
 - [x] 3. Dziennik — tory, odhaczanie, kaskada przesuwania
 - [x] 4. Cele + kreator/edytor — pełne drzewo decyzyjne
-- [ ] 5. Kalendarz
+- [x] 5. Kalendarz — Mój/Wiola/Wspólny, Tydzień/Miesiąc, Wspólna seria
 - [ ] 6. Profil — statystyki, Twoja podróż, ustawienia
 - [ ] 7. Backend (poza zakresem tego wątku — realizowany osobno)
 - [ ] 8. Powiadomienia (pełna logika panelu)
 - [ ] 9. Onboarding + samouczek
 - [ ] 10. Integracja z kalendarzem telefonu
 
-Zakładki Kalendarz i reszta Profilu mają na razie tymczasowy stan
-„wkrótce”, żeby nawigacja i header były kompletne od pierwszego kroku.
+Reszta Profilu ma na razie tymczasowy stan „wkrótce”, żeby nawigacja i
+header były kompletne od pierwszego kroku.
+
+**Uwaga architektoniczna (Kalendarz):** apka wciąż nie ma silnika
+"przełączania dnia" — Dziennik działa na jednym żywym "dziś" bez
+automatycznego zaawansowania o północy (pre-existing, nie wprowadzone przy
+tym kroku). Żeby Kalendarz mimo to renderował prawdziwe, a nie zmyślone
+dane (jak makieta z seedowanym RNG), każdy cel dostał `history` —
+zapisywaną w momencie akcji mapę dzień→wynik. To wystarcza do dziś i
+wstecz; pełne, automatyczne przełączanie dnia zostawione jako świadomie
+odłożone follow-up.
 
 ## Uruchomienie
 
@@ -36,6 +45,7 @@ npm run preview   # podgląd builda produkcyjnego (tu realnie testować tryb off
 - `src/lib/calendarUtils.ts` — daty/kalendarz, wspólne dla wszystkich ekranów
 - `src/lib/goals.ts` — czysta logika instancji dnia (kamienie, kaskada przesuwania)
 - `src/lib/goalForm.ts` — czysta logika Kreatora/Edytora celu (kadencja, progi kamieni, walidacja kroków)
+- `src/lib/kalendarz.ts` — agregacje dla Kalendarza (stan dnia, Wspólna seria, egzekwowanie widoczności dla partnerki)
 - `src/lib/db.ts` — warstwa IndexedDB (realny zamiennik `window.storage` z makiet)
 - `src/store/AppDataContext.tsx` — stan aplikacji + mutacje z zapisem lokalnym
 - `src/screens/` — ekrany per zakładka
