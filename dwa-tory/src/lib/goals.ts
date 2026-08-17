@@ -1,6 +1,7 @@
 // Czysta logika biznesowa celów/instancji dnia — bez Reacta, bez storage.
 // Odzwierciedla zachowanie dwa-tory-finalna.jsx (spec §9: "źródło prawdy").
 
+import { currentWeekKey } from './calendarUtils';
 import type { Goal, Milestone, MilestoneWithDone } from '../types';
 
 /**
@@ -40,6 +41,55 @@ export function applyUndoDone(goal: Goal): Goal {
   return {
     ...goal,
     instance: { ...goal.instance, curr: { status: 'plan', note: '' } },
+    ...(hasSessions ? { completedSessions: Math.max(0, goal.completedSessions! - 1) } : {}),
+  };
+}
+
+// --- "X razy w tygodniu": licznik tygodniowy, nie pojedynczy slot dnia ---
+// Bez tego "X razy w tygodniu" i "konkretne dni tygodnia" wyglądałyby i
+// działały identycznie w Dzienniku — obie po prostu przełączałyby jeden
+// stan plan/done. Tu realny, resetujący się co tydzień licznik postępu.
+
+export interface WeekProgress {
+  count: number;
+  target: number;
+}
+
+/** Efektywny postęp w BIEŻĄCYM tygodniu — jeśli zapisany weekKey jest z poprzedniego tygodnia, liczy się jako 0 (nowy tydzień), bez potrzeby osobnego kroku "reset". */
+export function weekProgressFor(goal: Goal): WeekProgress {
+  const target = Math.max(1, goal.cadencePerWeekCount ?? 1);
+  const key = currentWeekKey();
+  const count = goal.instance.curr.weekKey === key ? (goal.instance.curr.weekCount ?? 0) : 0;
+  return { count, target };
+}
+
+export function applyMarkDoneWeekly(goal: Goal, note: string): MarkDoneResult {
+  const { count, target } = weekProgressFor(goal);
+  const newCount = Math.min(target, count + 1);
+  const hasSessions = typeof goal.completedSessions === 'number';
+  const newSessions = hasSessions ? goal.completedSessions! + 1 : undefined;
+  const reachedMilestone = hasSessions ? goal.milestones.find((m) => m.threshold === newSessions) : undefined;
+  const updated: Goal = {
+    ...goal,
+    instance: {
+      ...goal.instance,
+      curr: { status: newCount >= target ? 'done' : 'plan', note, weekCount: newCount, weekKey: currentWeekKey() },
+    },
+    ...(hasSessions ? { completedSessions: newSessions } : {}),
+  };
+  return { goal: updated, reachedMilestone };
+}
+
+export function applyUndoDoneWeekly(goal: Goal): Goal {
+  const { count, target } = weekProgressFor(goal);
+  const newCount = Math.max(0, count - 1);
+  const hasSessions = typeof goal.completedSessions === 'number';
+  return {
+    ...goal,
+    instance: {
+      ...goal.instance,
+      curr: { status: newCount >= target ? 'done' : 'plan', note: '', weekCount: newCount, weekKey: currentWeekKey() },
+    },
     ...(hasSessions ? { completedSessions: Math.max(0, goal.completedSessions! - 1) } : {}),
   };
 }

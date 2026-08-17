@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { ChevronLeft, Flag, Plus, Repeat, Shield, Target, X, Zap } from 'lucide-react';
+import { GoalDot } from '../components/GoalDot';
 import { MonthCalendar } from '../components/MonthCalendar';
 import { OptionCard } from '../components/OptionCard';
 import { SelectChip } from '../components/SelectChip';
@@ -171,7 +172,7 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
                     <div className="flex flex-col gap-2">
                       <OptionCard icon={Repeat} color={trackColorFor('habit')} title="Nawyk bez końca" desc="Liczy się regularność, nie ma mety" selected={form.character === 'habit'} onClick={() => patch({ character: 'habit' })} />
                       <OptionCard icon={Flag} color={trackColorFor('termin')} title="Cel z konkretnym targetem" desc="Ma liczbę i termin" selected={form.character === 'termin'} onClick={() => patch({ character: 'termin' })} />
-                      <OptionCard icon={Target} color={trackColorFor('cyclicalContent')} title="Cel cykliczny z treścią" desc="Powtarza się, ale ma etapy" selected={form.character === 'cyclicalContent'} onClick={() => patch({ character: 'cyclicalContent' })} />
+                      <OptionCard icon={Target} color={trackColorFor('cyclicalContent')} title="Cel z etapami" desc="Powtarza się, ale ma kolejne etapy do zaliczenia" selected={form.character === 'cyclicalContent'} onClick={() => patch({ character: 'cyclicalContent' })} />
                     </div>
                   </div>
                 )}
@@ -445,13 +446,17 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
                 <div className="font-body text-[11px] mb-1" style={{ color: C.muted }}>Podgląd</div>
                 <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: trackColor }} />
+                    {form.character ? (
+                      <GoalDot color={trackColor} character={form.character} size={8} />
+                    ) : (
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: trackColor }} />
+                    )}
                     <span className="font-body text-xs" style={{ color: C.text }}>{form.name || 'Bez nazwy'}</span>
                   </div>
                   <div className="font-body text-[10px]" style={{ color: C.muted }}>
                     {isTask(form)
                       ? `Szybkie zadanie${form.taskDay ? ` · ${form.taskDay.day} ${monthAbbr(form.taskDay.month)}` : ''}${form.taskTime ? ` · ${form.taskTime}` : ''}`
-                      : `${form.character === 'habit' ? 'Nawyk' : form.character === 'termin' ? 'Cel z terminem' : 'Cel cykliczny'} · ${cadenceLabel(form)}${form.anchor ? ` · po: ${form.anchor}` : ''}`}
+                      : `${form.character === 'habit' ? 'Nawyk' : form.character === 'termin' ? 'Cel z terminem' : 'Cel z etapami'} · ${cadenceLabel(form)}${form.anchor ? ` · po: ${form.anchor}` : ''}`}
                   </div>
                   {!isTask(form) && form.character === 'termin' && form.targetValue && (
                     <div className="font-body text-[10px] mt-1" style={{ color: C.muted }}>Cel: {form.targetValue} {form.targetUnit}</div>

@@ -183,6 +183,14 @@ export function formStateToGoal(f: GoalFormState, personId: string, existing?: G
     anchor: f.anchor.trim() || undefined,
     minimalVersion: f.minimal.trim() || undefined,
     start: existing?.start ?? startLabel(f),
+    cadenceType: f.cadenceType!,
+    cadenceWeekdays: f.cadenceType === 'weekdays' ? f.weekdays : undefined,
+    cadencePerWeekCount: f.cadenceType === 'perWeekCount' ? f.perWeekCount : undefined,
+    cadenceMonthDay: f.cadenceType === 'monthly' ? (f.monthDay ?? undefined) : undefined,
+    cadenceTimeOfDay: f.timeOfDay.trim() || undefined,
+    // Zawsze regenerowany z pól powyżej — nigdy nie parsowany z powrotem,
+    // więc nie może się z nimi rozjechać (w przeciwieństwie do wcześniejszej
+    // wersji, gdzie edycja odtwarzała kadencję parsując ten sam string regexem).
     cadenceLabel: cadenceLabel(f),
     cadenceSlots: f.cadenceType === 'perWeekCount' ? ['Ten tydzień', 'Przyszły tydzień'] : ['Dziś', 'Jutro'],
     ...(f.character === 'termin' ? { targetValue: f.targetValue, targetUnit: f.targetUnit } : {}),
@@ -196,42 +204,14 @@ export function formStateToGoal(f: GoalFormState, personId: string, existing?: G
   };
 }
 
-const WEEKDAY_BY_LABEL = new Map<string, number>(DAY_LABELS.map((l, i) => [l, i]));
-
 /**
- * Odtwarza ustawienia kadencji z zapisanego `cadenceLabel` na wejściu do
- * edytora. Makieta tego nie robiła — startEditGoal() zostawiał kadencję i
- * datę startu puste, więc samo otwarcie edycji i zapis (np. tylko po to,
- * żeby poprawić nazwę) po cichu kasował wzorzec powtarzalności celu. Tu
- * naprawione: edycja zawsze startuje z pełnym, zgodnym stanem.
+ * Wejście do edycji czyta kadencję wprost ze ustrukturyzowanych pól celu
+ * (cadenceType/cadenceWeekdays/...), nie z parsowania cadenceLabel. Makieta
+ * (dwa-tory-finalna.jsx) w ogóle tego nie robiła — startEditGoal()
+ * zostawiał kadencję pustą, więc zapis "tylko żeby poprawić nazwę" po cichu
+ * kasował wzorzec powtarzalności celu. Tu edycja zawsze startuje z pełnym,
+ * zgodnym stanem.
  */
-function parseCadenceLabel(label: string): Pick<GoalFormState, 'cadenceType' | 'weekdays' | 'perWeekCount' | 'timeOfDay' | 'monthDay'> {
-  const base = emptyFormState();
-  if (label === 'codziennie') return { cadenceType: 'daily', weekdays: [], perWeekCount: base.perWeekCount, timeOfDay: '', monthDay: null };
-
-  const perWeekMatch = label.match(/^(\d+)× w tygodniu(?: · (.+))?$/);
-  if (perWeekMatch) {
-    return { cadenceType: 'perWeekCount', weekdays: [], perWeekCount: parseInt(perWeekMatch[1], 10), timeOfDay: perWeekMatch[2] ?? '', monthDay: null };
-  }
-
-  const monthlyMatch = label.match(/^co miesiąc, (?:(\d+)\. dnia|dzień nieustalony)(?: o (.+))?$/);
-  if (monthlyMatch) {
-    return { cadenceType: 'monthly', weekdays: [], perWeekCount: base.perWeekCount, timeOfDay: monthlyMatch[2] ?? '', monthDay: monthlyMatch[1] ? parseInt(monthlyMatch[1], 10) : null };
-  }
-
-  const weekdaysMatch = label.match(/^([^o]+?)(?: o (.+))?$/);
-  if (weekdaysMatch) {
-    const days = weekdaysMatch[1]
-      .split(',')
-      .map((d) => d.trim())
-      .map((d) => WEEKDAY_BY_LABEL.get(d))
-      .filter((i): i is number => i !== undefined);
-    if (days.length > 0) return { cadenceType: 'weekdays', weekdays: days, perWeekCount: base.perWeekCount, timeOfDay: weekdaysMatch[2] ?? '', monthDay: null };
-  }
-
-  return { cadenceType: null, weekdays: [], perWeekCount: base.perWeekCount, timeOfDay: '', monthDay: null };
-}
-
 export function goalToFormState(g: Goal): GoalFormState {
   const base = emptyFormState();
   const referenceYear = today().year;
@@ -248,7 +228,11 @@ export function goalToFormState(g: Goal): GoalFormState {
     name: g.title,
     reason: g.reason ?? '',
     character: g.character,
-    ...parseCadenceLabel(g.cadenceLabel),
+    cadenceType: g.cadenceType,
+    weekdays: g.cadenceWeekdays ?? [],
+    perWeekCount: g.cadencePerWeekCount ?? base.perWeekCount,
+    monthDay: g.cadenceMonthDay ?? null,
+    timeOfDay: g.cadenceTimeOfDay ?? '',
     anchor: g.anchor ?? '',
     minimal: g.minimalVersion ?? '',
     milestonePlan: g.milestones.length > 0 ? 'now' : 'later',

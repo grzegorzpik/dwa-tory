@@ -38,6 +38,15 @@ export type InstanceStatus = 'plan' | 'done' | 'moved' | 'skipped';
 export interface DayInstance {
   status: InstanceStatus;
   note?: string;
+  /**
+   * Tylko dla cadenceType==="perWeekCount": ile razy odhaczone w bieżącym
+   * tygodniu. Bez tego "X razy w tygodniu" i "konkretne dni tygodnia" byłyby
+   * nie do odróżnienia w Dzienniku — to pole napędza realny licznik zamiast
+   * pojedynczego dnia-slotu.
+   */
+  weekCount?: number;
+  /** Klucz tygodnia (poniedziałek, YYYY-MM-DD) dla którego liczy się weekCount — wykrywa przejście do nowego tygodnia. */
+  weekKey?: string;
 }
 
 export interface NextInstance {
@@ -61,6 +70,16 @@ export interface Goal {
   minimalVersion?: string;
   /** Data startu w formie czytelnej ("dziś" albo "12 sie") — punkt "Start" w Twojej podróży. */
   start: string;
+  /**
+   * Ustrukturyzowana kadencja — źródło prawdy. `cadenceLabel` to tylko
+   * wygenerowany z niej opis do wyświetlenia (regenerowany przy każdym
+   * zapisie), nigdy edytowany ręcznie ani parsowany z powrotem.
+   */
+  cadenceType: 'daily' | 'weekdays' | 'perWeekCount' | 'monthly';
+  cadenceWeekdays?: number[]; // tylko cadenceType==="weekdays", 0=Pn..6=Nd
+  cadencePerWeekCount?: number; // tylko cadenceType==="perWeekCount"
+  cadenceMonthDay?: number; // tylko cadenceType==="monthly"
+  cadenceTimeOfDay?: string;
   cadenceLabel: string;
   cadenceSlots: [string, string]; // ["Dziś","Jutro"] albo ["Ten tydzień","Przyszły tydzień"]
   targetValue?: string; // tylko type="termin"

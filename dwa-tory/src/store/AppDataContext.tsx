@@ -4,7 +4,16 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as db from '../lib/db';
-import { applyDoubleUp, applyDrop, applyMarkDone, applySimpleMove, applyUndoDone, nextSlotIsOccupied } from '../lib/goals';
+import {
+  applyDoubleUp,
+  applyDrop,
+  applyMarkDone,
+  applyMarkDoneWeekly,
+  applySimpleMove,
+  applyUndoDone,
+  applyUndoDoneWeekly,
+  nextSlotIsOccupied,
+} from '../lib/goals';
 import { seedGoals, seedPeople, seedSettings } from '../lib/seedData';
 import type { AppSettings, Goal, Milestone, Person } from '../types';
 
@@ -109,7 +118,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setGoals((prev) =>
         prev.map((g) => {
           if (g.id !== goalId) return g;
-          const { goal, reachedMilestone } = applyMarkDone(g, note);
+          // "X razy w tygodniu" ma osobny licznik tygodniowy — nie pojedynczy slot dnia (patrz lib/goals.ts).
+          const { goal, reachedMilestone } = g.cadenceType === 'perWeekCount' ? applyMarkDoneWeekly(g, note) : applyMarkDone(g, note);
           persistGoal(goal);
           if (reachedMilestone) {
             setMilestoneCelebration({ goalTitle: goal.title, milestone: reachedMilestone, color: goal.type === 'termin' ? '#E8724F' : '#8AAE9E' });
@@ -129,7 +139,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setGoals((prev) =>
         prev.map((g) => {
           if (g.id !== goalId) return g;
-          const goal = applyUndoDone(g);
+          const goal = g.cadenceType === 'perWeekCount' ? applyUndoDoneWeekly(g) : applyUndoDone(g);
           persistGoal(goal);
           return goal;
         }),

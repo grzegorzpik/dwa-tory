@@ -53,7 +53,7 @@ function AppShell() {
 
             <div className="flex-1 overflow-y-auto px-4 pb-4 relative">
               <NotificationsPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
-              {tab === 'dziennik' && <Dziennik />}
+              {tab === 'dziennik' && <Dziennik onEditGoal={(g) => setGoalEditor(g)} />}
               {tab === 'cele' && <Cele onNewGoal={() => setGoalEditor('new')} onEditGoal={(g) => setGoalEditor(g)} />}
               {tab === 'kalendarz' && <Kalendarz />}
               {tab === 'profil' && <Profil />}

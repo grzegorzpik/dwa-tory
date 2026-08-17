@@ -54,6 +54,9 @@ export const startOfWeek = (ymd: Ymd): Ymd => addDays(ymd, -isoWeekday(ymd));
 /** Klucz stabilny do porównań/zapisu w bazie: YYYY-MM-DD. */
 export const ymdKey = (ymd: Ymd) => `${ymd.year}-${String(ymd.month + 1).padStart(2, '0')}-${String(ymd.day).padStart(2, '0')}`;
 
+/** Klucz bieżącego tygodnia (poniedziałek) — napędza reset licznika "X razy w tygodniu". */
+export const currentWeekKey = () => ymdKey(startOfWeek(today()));
+
 export const buildMonthGrid = (year: number, month: number): (number | null)[] => {
   const startOffset = isoWeekday({ year, month, day: 1 });
   const numDays = new Date(year, month + 1, 0).getDate();

@@ -33,6 +33,7 @@ export function seedGoals(): Goal[] {
     character: 'termin',
     reason: 'żeby mieć więcej energii na co dzień',
     start: formatShortDate(addDays(t, -75)),
+    cadenceType: 'daily',
     cadenceLabel: 'codziennie',
     cadenceSlots: ['Dziś', 'Jutro'],
     targetValue: '100',
@@ -53,8 +54,28 @@ export function seedGoals(): Goal[] {
     character: 'habit',
     anchor: 'po umyciu zębów',
     start: 'dziś',
+    cadenceType: 'daily',
     cadenceLabel: 'codziennie',
     cadenceSlots: ['Dziś', 'Jutro'],
+    milestones: [],
+    instance: { curr: { status: 'plan', note: '' }, next: { status: 'plan', double: false } },
+    rescheduleCount: 0,
+    visibleToPartner: true,
+    syncToPhoneCalendar: false,
+  };
+
+  const gym: Goal = {
+    id: uuid(),
+    personId: 'a',
+    title: 'Siłownia',
+    type: 'cykliczny',
+    character: 'habit',
+    reason: 'żeby mieć więcej energii i lepiej spać',
+    start: formatShortDate(addDays(t, -20)),
+    cadenceType: 'perWeekCount',
+    cadencePerWeekCount: 3,
+    cadenceLabel: '3× w tygodniu',
+    cadenceSlots: ['Ten tydzień', 'Przyszły tydzień'],
     milestones: [],
     instance: { curr: { status: 'plan', note: '' }, next: { status: 'plan', double: false } },
     rescheduleCount: 0,
@@ -69,7 +90,9 @@ export function seedGoals(): Goal[] {
     type: 'cykliczny',
     character: 'cyclicalContent',
     start: formatShortDate(addDays(t, -34)),
-    cadenceLabel: 'co tydzień',
+    cadenceType: 'perWeekCount',
+    cadencePerWeekCount: 1,
+    cadenceLabel: '1× w tygodniu',
     cadenceSlots: ['Ten tydzień', 'Przyszły tydzień'],
     milestones: [
       { id: uuid(), label: 'Moduł 1: podstawy', date: formatShortDate(addDays(t, -34)) },
@@ -88,7 +111,7 @@ export function seedGoals(): Goal[] {
     [excelCourse.milestones[1].id]: true,
   };
 
-  return [marathon, reading, excelCourse];
+  return [marathon, reading, gym, excelCourse];
 }
 
 export function seedSettings(): AppSettings {

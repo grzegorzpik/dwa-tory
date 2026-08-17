@@ -2,6 +2,7 @@
 // TYPE_COLOR[goal.type], nigdy kolor osoby.
 
 import { AlertTriangle, ChevronRight, Plus } from 'lucide-react';
+import { GoalDot } from '../components/GoalDot';
 import { MiniTrack } from '../components/MiniTrack';
 import { milestonesFor, RESCHEDULE_WARNING_THRESHOLD } from '../lib/goals';
 import { useAppData } from '../store/AppDataContext';
@@ -45,7 +46,7 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: () => void }) {
     <div onClick={onClick} className="rounded-xl p-3 cursor-pointer flex items-start justify-between gap-2" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1.5">
-          <div className="w-2 h-2 rounded-full shrink-0" style={{ background: trackColor }} />
+          <GoalDot color={trackColor} character={goal.character} size={8} />
           <span className="font-body text-xs" style={{ color: C.text }}>{goal.title}</span>
         </div>
         {goal.milestones.length > 0 ? (
@@ -56,7 +57,9 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: () => void }) {
             </div>
           </>
         ) : (
-          <div className="font-body text-[10px]" style={{ color: C.muted }}>nawyk · {goal.cadenceLabel}</div>
+          <div className="font-body text-[10px]" style={{ color: C.muted }}>
+            {goal.character === 'habit' ? `nawyk · ${goal.cadenceLabel}` : goal.cadenceLabel}
+          </div>
         )}
         {showSuggestion && (
           <div className="font-body text-[10px] flex items-center gap-1.5 mt-1.5 pt-1.5" style={{ color: C.gold, borderTop: `1px solid ${C.line}` }}>
