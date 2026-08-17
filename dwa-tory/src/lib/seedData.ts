@@ -6,8 +6,7 @@
 import { PERSON_COLOR } from '../theme';
 import type { AppSettings, Goal, Person } from './../types';
 import { formatShortDate, addDays, today } from './calendarUtils';
-
-const uuid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+import { uuid } from './id';
 
 export function seedPeople(): Person[] {
   return [

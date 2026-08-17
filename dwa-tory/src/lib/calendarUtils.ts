@@ -17,7 +17,18 @@ export const MONTH_NAMES = [
 
 export const monthAbbr = (month: number) => MONTH_NAMES[month].slice(0, 3).toLowerCase();
 
+const MONTH_ABBR_TO_INDEX = new Map(MONTH_NAMES.map((_, i) => [monthAbbr(i), i]));
+
 export const formatShortDate = (ymd: Ymd) => `${ymd.day} ${monthAbbr(ymd.month)}`;
+
+/** Odwrotność formatShortDate — "12 sie" + rok odniesienia → Ymd. */
+export const parseShortDate = (label: string, referenceYear: number): Ymd | null => {
+  const [dayStr, abbr] = label.trim().split(/\s+/);
+  const day = parseInt(dayStr, 10);
+  const month = MONTH_ABBR_TO_INDEX.get(abbr);
+  if (!day || month === undefined) return null;
+  return { year: referenceYear, month, day };
+};
 
 export const today = (): Ymd => {
   const d = new Date();

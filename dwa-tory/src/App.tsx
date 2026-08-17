@@ -5,10 +5,12 @@ import { BottomNav } from './components/BottomNav';
 import { NotificationsPanel } from './components/NotificationsPanel';
 import { Dziennik } from './screens/Dziennik';
 import { Cele } from './screens/Cele';
+import { GoalEditor } from './screens/GoalEditor';
 import { Kalendarz } from './screens/Kalendarz';
 import { Profil } from './screens/Profil';
 import { AppDataProvider, useAppData } from './store/AppDataContext';
 import { C, SHELL_BG } from './theme';
+import type { Goal } from './types';
 
 export type TabId = 'dziennik' | 'cele' | 'kalendarz' | 'profil';
 
@@ -17,6 +19,8 @@ function AppShell() {
   const [showSplash, setShowSplash] = useState(true);
   const [tab, setTab] = useState<TabId>('dziennik');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  // 'new' = kreator pustego formularza; Goal = edycja istniejącego celu (wejście: FAB albo karta celu — spec §5.5)
+  const [goalEditor, setGoalEditor] = useState<'new' | Goal | null>(null);
 
   const goToTab = (id: TabId) => {
     setNotificationsOpen(false);
@@ -35,6 +39,8 @@ function AppShell() {
               DWA TORY
             </span>
           </div>
+        ) : goalEditor !== null ? (
+          <GoalEditor goal={goalEditor === 'new' ? undefined : goalEditor} onClose={() => setGoalEditor(null)} />
         ) : (
           <>
             <Header
@@ -48,7 +54,7 @@ function AppShell() {
             <div className="flex-1 overflow-y-auto px-4 pb-4 relative">
               <NotificationsPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
               {tab === 'dziennik' && <Dziennik />}
-              {tab === 'cele' && <Cele />}
+              {tab === 'cele' && <Cele onNewGoal={() => setGoalEditor('new')} onEditGoal={(g) => setGoalEditor(g)} />}
               {tab === 'kalendarz' && <Kalendarz />}
               {tab === 'profil' && <Profil />}
             </div>

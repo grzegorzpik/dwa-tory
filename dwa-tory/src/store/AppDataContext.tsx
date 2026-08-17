@@ -31,6 +31,9 @@ interface AppDataValue {
   resolveDoubleUp: (goalId: string) => void;
   resolveDrop: (goalId: string, which: 'curr' | 'next') => void;
   updateSettings: (patch: Partial<AppSettings>) => void;
+  /** Upsert — Kreator/Edytor buduje cały obiekt Goal (nowy albo edytowany) i przekazuje go tutaj. */
+  saveGoal: (goal: Goal) => void;
+  removeGoal: (goalId: string) => void;
 }
 
 const AppDataContext = createContext<AppDataValue | null>(null);
@@ -182,6 +185,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [persistGoal],
   );
 
+  const saveGoal = useCallback(
+    (goal: Goal) => {
+      setGoals((prev) => (prev.some((g) => g.id === goal.id) ? prev.map((g) => (g.id === goal.id ? goal : g)) : [...prev, goal]));
+      persistGoal(goal);
+    },
+    [persistGoal],
+  );
+
+  const removeGoal = useCallback((goalId: string) => {
+    setGoals((prev) => prev.filter((g) => g.id !== goalId));
+    db.deleteGoal(goalId).catch((e) => console.error('Nie udało się usunąć celu lokalnie', e));
+  }, []);
+
   const updateSettings = useCallback((patch: Partial<AppSettings>) => {
     setSettings((prev) => {
       const updated = { ...prev, ...patch };
@@ -224,6 +240,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     resolveDoubleUp,
     resolveDrop,
     updateSettings,
+    saveGoal,
+    removeGoal,
   };
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
