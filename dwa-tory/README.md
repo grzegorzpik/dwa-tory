@@ -10,7 +10,7 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [x] 1. Fundament — projekt PWA (manifest, service worker), `theme.ts`, routing zakładek, splash
 - [x] 2. Dane lokalne — model, IndexedDB, tryb offline
 - [x] 3. Dziennik — tory, odhaczanie, kaskada przesuwania
-- [ ] 4. Cele + kreator/edytor
+- [x] 4. Cele + kreator/edytor — pełne drzewo decyzyjne
 - [ ] 5. Kalendarz
 - [ ] 6. Profil — statystyki, Twoja podróż, ustawienia
 - [ ] 7. Backend (poza zakresem tego wątku — realizowany osobno)
@@ -18,7 +18,7 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [ ] 9. Onboarding + samouczek
 - [ ] 10. Integracja z kalendarzem telefonu
 
-Zakładki Cele/Kalendarz i reszta Profilu mają na razie tymczasowy stan
+Zakładki Kalendarz i reszta Profilu mają na razie tymczasowy stan
 „wkrótce”, żeby nawigacja i header były kompletne od pierwszego kroku.
 
 ## Uruchomienie
@@ -35,6 +35,7 @@ npm run preview   # podgląd builda produkcyjnego (tu realnie testować tryb off
 - `src/theme.ts` — jedyne źródło prawdy dla kolorów/typografii/animacji (spec §7)
 - `src/lib/calendarUtils.ts` — daty/kalendarz, wspólne dla wszystkich ekranów
 - `src/lib/goals.ts` — czysta logika instancji dnia (kamienie, kaskada przesuwania)
+- `src/lib/goalForm.ts` — czysta logika Kreatora/Edytora celu (kadencja, progi kamieni, walidacja kroków)
 - `src/lib/db.ts` — warstwa IndexedDB (realny zamiennik `window.storage` z makiet)
 - `src/store/AppDataContext.tsx` — stan aplikacji + mutacje z zapisem lokalnym
 - `src/screens/` — ekrany per zakładka
