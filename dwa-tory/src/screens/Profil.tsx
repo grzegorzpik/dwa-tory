@@ -28,7 +28,7 @@ import { C } from '../theme';
 
 type RowKey = 'notifications' | 'account' | 'photo' | 'selfTime' | 'calendarView' | 'about' | 'tutorial';
 
-export function Profil() {
+export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
   const { currentUser, partner, goals, settings, updateSettings, updateProfile } = useAppData();
   const milestonesReached = goals.reduce((sum, g) => sum + milestonesFor(g).filter((m) => m.done).length, 0);
   const [expanded, setExpanded] = useState<Set<RowKey>>(new Set());
@@ -203,7 +203,7 @@ export function Profil() {
             </div>
           </SettingsRow>
 
-          <SettingsRow icon={GraduationCap} title="Uruchom samouczek ponownie" subtitle="Dostępne po kroku 9" expanded={false} onToggle={() => {}} disabled />
+          <SettingsRow icon={GraduationCap} title="Uruchom samouczek ponownie" expanded={false} onToggle={onOpenTutorial} />
         </div>
       </div>
 

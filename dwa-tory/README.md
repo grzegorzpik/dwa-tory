@@ -15,7 +15,7 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [x] 6. Profil — statystyki, Twoja podróż, ustawienia, eksport danych
 - [ ] 7. Backend (poza zakresem tego wątku — realizowany osobno)
 - [x] 8. Powiadomienia — pełna logika panelu (chipy, limit 5 słów, odpowiedziane)
-- [ ] 9. Onboarding + samouczek
+- [x] 9. Onboarding + samouczek — imię/zdjęcie, status połączenia z partnerką, czas dla siebie, 4 karty funkcji, relaunch z Profilu
 - [ ] 10. Integracja z kalendarzem telefonu
 
 **Domknięta luka ze spec (§7, eksport/backup danych):** przycisk
@@ -29,6 +29,18 @@ z lokalnych danych, rozłączanie/parowanie nieaktywne) i mechanizm push w
 nie udają, że działają. Sama lista powiadomień (co partnerka zrobiła +
 odpowiedzi z limitem 5 słów) jest w pełni funkcjonalna na statycznych
 danych demo — dwukierunkowa wymiana z prawdziwą Wiolą czeka na backend.
+
+**Uwaga architektoniczna (Onboarding):** dane demo (seed) startują z
+`hasCompletedOnboarding: true`, żeby zakładka Dziennik/Cele/Kalendarz/Profil
+były od razu testowalne bez przechodzenia przez onboarding za każdym razem —
+to świadoma decyzja, nie przeoczenie. Sam ekran onboardingu jest w pełni
+zaimplementowany (`src/screens/Onboarding.tsx`) i wystarczy przełączyć ten
+jeden flag w danych, żeby zobaczyć go od pierwszego uruchomienia. Krok
+"Połącz się z partnerką" pokazuje status z lokalnych danych (partnerka jest
+już sparowana w demo) zamiast udawać działające generowanie kodu zaproszenia
+— realne parowanie kont wymaga backendu (krok 7), zgodnie z tym samym
+podejściem co w Profilu. Samouczek (4 karty funkcji) można też uruchomić
+ponownie w dowolnym momencie z Profilu → Ustawienia.
 
 **Uwaga architektoniczna (Kalendarz):** apka wciąż nie ma silnika
 "przełączania dnia" — Dziennik działa na jednym żywym "dziś" bez
