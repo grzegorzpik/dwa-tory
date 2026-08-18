@@ -45,6 +45,8 @@ interface AppDataValue {
   /** Upsert — Kreator/Edytor buduje cały obiekt Goal (nowy albo edytowany) i przekazuje go tutaj. */
   saveGoal: (goal: Goal) => void;
   removeGoal: (goalId: string) => void;
+  /** Edycja własnego profilu (na razie zdjęcie — spec §5.7 "Zdjęcie profilowe"). */
+  updateProfile: (patch: Partial<Pick<Person, 'photo' | 'name'>>) => void;
 }
 
 const AppDataContext = createContext<AppDataValue | null>(null);
@@ -117,6 +119,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const nextStreak = Math.max(0, p.streak + delta);
       const updated: Person = { ...p, streak: nextStreak, longestStreak: Math.max(p.longestStreak, nextStreak) };
       db.putPerson(updated).catch((e) => console.error('Nie udało się zapisać serii lokalnie', e));
+      return { ...prev, [CURRENT_USER_ID]: updated };
+    });
+  }, []);
+
+  const updateProfile = useCallback((patch: Partial<Pick<Person, 'photo' | 'name'>>) => {
+    setPeople((prev) => {
+      const p = prev[CURRENT_USER_ID];
+      if (!p) return prev;
+      const updated: Person = { ...p, ...patch };
+      db.putPerson(updated).catch((e) => console.error('Nie udało się zapisać profilu lokalnie', e));
       return { ...prev, [CURRENT_USER_ID]: updated };
     });
   }, []);
@@ -261,6 +273,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     updateSettings,
     saveGoal,
     removeGoal,
+    updateProfile,
   };
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
