@@ -25,8 +25,15 @@ export function cropImageToDataUrl(src: string, scale: number, offsetX: number, 
       ctx.closePath();
       ctx.clip();
       const ratio = outputSize / frameSize;
-      const drawW = img.width * scale * ratio;
-      const drawH = img.height * scale * ratio;
+      // "scale" to dodatkowy zoom PONAD dopasowanie do ramki — bez tego
+      // zdjęcia większe niż ramka (każde zdjęcie z aparatu) renderowały się
+      // w swoim naturalnym rozmiarze w pikselach, czyli od razu ogromnie
+      // powiększone, zanim użytkownik w ogóle ruszył suwakiem. Musi być
+      // identyczne jak baseScale w PhotoCropper (WYSIWYG podglądu i eksportu).
+      const baseScale = frameSize / Math.min(img.width, img.height);
+      const totalScale = baseScale * scale;
+      const drawW = img.width * totalScale * ratio;
+      const drawH = img.height * totalScale * ratio;
       const cx = outputSize / 2 + offsetX * ratio;
       const cy = outputSize / 2 + offsetY * ratio;
       ctx.drawImage(img, cx - drawW / 2, cy - drawH / 2, drawW, drawH);
