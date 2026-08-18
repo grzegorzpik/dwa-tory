@@ -15,7 +15,7 @@ import type { Goal } from './types';
 export type TabId = 'dziennik' | 'cele' | 'kalendarz' | 'profil';
 
 function AppShell() {
-  const { loading, currentUser } = useAppData();
+  const { loading, currentUser, notifications } = useAppData();
   const [showSplash, setShowSplash] = useState(true);
   const [tab, setTab] = useState<TabId>('dziennik');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -46,7 +46,7 @@ function AppShell() {
             <Header
               currentUser={currentUser}
               showStreak={tab === 'dziennik'}
-              unreadNotifications={0}
+              unreadNotifications={notifications.filter((n) => !n.responded).length}
               onAvatarClick={() => goToTab('profil')}
               onBellClick={() => setNotificationsOpen((o) => !o)}
             />

@@ -14,8 +14,8 @@ import {
   applyUndoDoneWeekly,
   nextSlotIsOccupied,
 } from '../lib/goals';
-import { seedGoals, seedPeople, seedSettings } from '../lib/seedData';
-import type { AppSettings, Goal, Milestone, Person } from '../types';
+import { seedGoals, seedNotifications, seedPeople, seedSettings } from '../lib/seedData';
+import type { AppNotification, AppSettings, Goal, Milestone, Person } from '../types';
 
 interface MilestoneCelebration {
   goalTitle: string;
@@ -47,6 +47,8 @@ interface AppDataValue {
   removeGoal: (goalId: string) => void;
   /** Edycja własnego profilu (na razie zdjęcie — spec §5.7 "Zdjęcie profilowe"). */
   updateProfile: (patch: Partial<Pick<Person, 'photo' | 'name'>>) => void;
+  notifications: AppNotification[];
+  sendReply: (notificationId: string, text: string) => void;
 }
 
 const AppDataContext = createContext<AppDataValue | null>(null);
@@ -58,6 +60,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [people, setPeople] = useState<Record<string, Person>>({});
   const [goals, setGoals] = useState<Goal[]>([]);
   const [partnerGoals, setPartnerGoals] = useState<Goal[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [settings, setSettings] = useState<AppSettings>(seedSettings());
   const [justCompleted, setJustCompleted] = useState(false);
   const [celebrateAllDone, setCelebrateAllDone] = useState(false);
@@ -75,20 +78,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           if (existing.length > 0) return;
           await Promise.all(seedPeople().map(db.putPerson));
           await Promise.all(seedGoals().map(db.putGoal));
+          await Promise.all(seedNotifications().map(db.putNotification));
           await db.setCurrentUserId(CURRENT_USER_ID);
           await db.putSettings(seedSettings());
         });
 
         const allPeople = await db.getAllPeople();
         const partnerId = allPeople.find((p) => p.id !== CURRENT_USER_ID)?.id;
-        const [myGoals, partnerGoalsLoaded, savedSettings] = await Promise.all([
+        const [myGoals, partnerGoalsLoaded, savedSettings, allNotifications] = await Promise.all([
           db.getGoalsForPerson(CURRENT_USER_ID),
           partnerId ? db.getGoalsForPerson(partnerId) : Promise.resolve([]),
           db.getSettings(),
+          db.getAllNotifications(),
         ]);
         setPeople(Object.fromEntries(allPeople.map((p) => [p.id, p])));
         setGoals(myGoals);
         setPartnerGoals(partnerGoalsLoaded);
+        setNotifications(allNotifications);
         if (savedSettings) setSettings(savedSettings);
       } catch (e) {
         // Awaryjnie: pokaż appkę z samymi danymi w pamięci zamiast zawiesić
@@ -99,6 +105,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         setPeople(Object.fromEntries(fallbackPeople.map((p) => [p.id, p])));
         setGoals(fallbackGoals.filter((g) => g.personId === CURRENT_USER_ID));
         setPartnerGoals(fallbackGoals.filter((g) => g.personId !== CURRENT_USER_ID));
+        setNotifications(seedNotifications());
       } finally {
         setLoading(false);
       }
@@ -228,6 +235,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     db.deleteGoal(goalId).catch((e) => console.error('Nie udało się usunąć celu lokalnie', e));
   }, []);
 
+  const sendReply = useCallback((notificationId: string, text: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => {
+        if (n.id !== notificationId) return n;
+        const updated: AppNotification = { ...n, responded: true, reply: text };
+        db.putNotification(updated).catch((e) => console.error('Nie udało się zapisać odpowiedzi lokalnie', e));
+        return updated;
+      }),
+    );
+  }, []);
+
   const updateSettings = useCallback((patch: Partial<AppSettings>) => {
     setSettings((prev) => {
       const updated = { ...prev, ...patch };
@@ -274,6 +292,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     saveGoal,
     removeGoal,
     updateProfile,
+    notifications,
+    sendReply,
   };
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;

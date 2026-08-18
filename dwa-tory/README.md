@@ -14,7 +14,7 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [x] 5. Kalendarz — Mój/Wiola/Wspólny, Tydzień/Miesiąc, Wspólna seria
 - [x] 6. Profil — statystyki, Twoja podróż, ustawienia, eksport danych
 - [ ] 7. Backend (poza zakresem tego wątku — realizowany osobno)
-- [ ] 8. Powiadomienia (pełna logika panelu)
+- [x] 8. Powiadomienia — pełna logika panelu (chipy, limit 5 słów, odpowiedziane)
 - [ ] 9. Onboarding + samouczek
 - [ ] 10. Integracja z kalendarzem telefonu
 
@@ -26,7 +26,9 @@ działa w prawdziwej appce (przeglądarka/PWA), nie w podglądzie artifact
 **Sekcje wymagające backendu:** "Konto i połączenie z partnerem" (status
 z lokalnych danych, rozłączanie/parowanie nieaktywne) i mechanizm push w
 "Powiadomienia" (zapisujemy tylko preferencję) — jasno oznaczone w UI,
-nie udają, że działają.
+nie udają, że działają. Sama lista powiadomień (co partnerka zrobiła +
+odpowiedzi z limitem 5 słów) jest w pełni funkcjonalna na statycznych
+danych demo — dwukierunkowa wymiana z prawdziwą Wiolą czeka na backend.
 
 **Uwaga architektoniczna (Kalendarz):** apka wciąż nie ma silnika
 "przełączania dnia" — Dziennik działa na jednym żywym "dziś" bez
@@ -55,6 +57,7 @@ npm run preview   # podgląd builda produkcyjnego (tu realnie testować tryb off
 - `src/lib/kalendarz.ts` — agregacje dla Kalendarza (stan dnia, Wspólna seria, egzekwowanie widoczności dla partnerki)
 - `src/lib/photo.ts` — kadrowanie zdjęcia profilowego przez `<canvas>`
 - `src/lib/exportData.ts` — eksport danych użytkownika do JSON
+- `src/lib/notifications.ts` — limit słów i walidacja odpowiedzi na powiadomienie
 - `src/lib/db.ts` — warstwa IndexedDB (realny zamiennik `window.storage` z makiet)
 - `src/store/AppDataContext.tsx` — stan aplikacji + mutacje z zapisem lokalnym
 - `src/screens/` — ekrany per zakładka

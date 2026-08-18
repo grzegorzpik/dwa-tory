@@ -4,7 +4,7 @@
 // odblokowania kolejnego etapu + zwykły nawyk bez kamieni).
 
 import { PERSON_COLOR } from '../theme';
-import type { AppSettings, Goal, Person } from './../types';
+import type { AppNotification, AppSettings, Goal, Person } from './../types';
 import { formatShortDate, addDays, today, ymdKey, type Ymd } from './calendarUtils';
 import { uuid } from './id';
 
@@ -132,6 +132,15 @@ export function seedGoals(): Goal[] {
   };
 
   return [marathon, reading, gym, excelCourse];
+}
+
+/** Co partnerka zrobiła + kiedy (spec §5.8) — bez backendu statyczne, ale realne dane do odpowiedzi. */
+export function seedNotifications(): AppNotification[] {
+  return [
+    { id: uuid(), person: 'b', text: 'ukończyła Moduł 2: tabele przestawne', time: 'wczoraj, 19:14', responded: false },
+    { id: uuid(), person: 'b', text: 'zrobiła Kurs Excela 3 tygodnie z rzędu', time: '3 dni temu', responded: true, reply: 'Dumny/a z Ciebie' },
+    { id: uuid(), person: 'b', text: 'przesunęła zadanie na jutro', time: '5 dni temu', responded: false },
+  ];
 }
 
 export function seedSettings(): AppSettings {
