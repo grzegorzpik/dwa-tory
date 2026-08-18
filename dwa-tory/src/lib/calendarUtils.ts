@@ -57,9 +57,11 @@ export const ymdKey = (ymd: Ymd) => `${ymd.year}-${String(ymd.month + 1).padStar
 /** Klucz bieżącego tygodnia (poniedziałek) — napędza reset licznika "X razy w tygodniu". */
 export const currentWeekKey = () => ymdKey(startOfWeek(today()));
 
+export const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+
 export const buildMonthGrid = (year: number, month: number): (number | null)[] => {
   const startOffset = isoWeekday({ year, month, day: 1 });
-  const numDays = new Date(year, month + 1, 0).getDate();
+  const numDays = daysInMonth(year, month);
   const cells: (number | null)[] = [];
   for (let i = 0; i < startOffset; i++) cells.push(null);
   for (let d = 1; d <= numDays; d++) cells.push(d);

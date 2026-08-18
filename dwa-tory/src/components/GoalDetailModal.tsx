@@ -5,11 +5,12 @@
 // wieloetapowy kreator tylko po to, żeby zobaczyć postęp.
 
 import type { ReactNode } from 'react';
-import { Pencil, Users, CalendarSync, X } from 'lucide-react';
+import { CalendarPlus, Pencil, Users, CalendarSync, X } from 'lucide-react';
 import { DayChip } from './DayChip';
 import { GoalDot } from './GoalDot';
 import { MiniTrack } from './MiniTrack';
 import { milestonesFor, weekProgressFor } from '../lib/goals';
+import { icsDataUri } from '../lib/ics';
 import { C, TYPE_COLOR } from '../theme';
 import type { Goal } from '../types';
 
@@ -115,6 +116,15 @@ export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose
                 last
               />
             </div>
+            {goal.syncToPhoneCalendar && (
+              <a
+                href={icsDataUri(goal)}
+                className="mt-2 w-full font-body text-[11px] py-2.5 rounded-xl flex items-center justify-center gap-1.5"
+                style={{ border: `1px solid ${trackColor}`, color: trackColor, minHeight: 44, textDecoration: 'none' }}
+              >
+                <CalendarPlus size={13} /> Dodaj do Kalendarza (iPhone)
+              </a>
+            )}
           </div>
 
           {goal.reason && <div className="font-body text-[11px] italic" style={{ color: C.muted }}>„{goal.reason}”</div>}

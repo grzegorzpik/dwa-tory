@@ -482,7 +482,9 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
                       <ToggleSwitch checked={form.syncToPhoneCalendar} onChange={(v) => patch({ syncToPhoneCalendar: v })} color={trackColor} />
                     </label>
                     {form.syncToPhoneCalendar && (
-                      <div className="font-body text-[9px]" style={{ color: C.muted }}>Samo połączenie z kalendarzem telefonu dołączy w kroku 10 budowy — teraz zapisujemy tylko Twoją preferencję.</div>
+                      <div className="font-body text-[9px]" style={{ color: C.muted }}>
+                        Po zapisaniu znajdziesz przycisk „Dodaj do Kalendarza” w podglądzie celu (Dziennik → dotknij nazwę celu).
+                      </div>
                     )}
                   </div>
                 )}

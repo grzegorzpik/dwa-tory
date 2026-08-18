@@ -16,12 +16,14 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [ ] 7. Backend (poza zakresem tego wątku — realizowany osobno)
 - [x] 8. Powiadomienia — pełna logika panelu (chipy, limit 5 słów, odpowiedziane)
 - [x] 9. Onboarding + samouczek — imię/zdjęcie, status połączenia z partnerką, czas dla siebie, 4 karty funkcji, relaunch z Profilu
-- [ ] 10. Integracja z kalendarzem telefonu
+- [x] 10. Integracja z kalendarzem telefonu — eksport zdarzenia .ics per cel, celowo tylko pod iPhone/Safari
 
 **Domknięta luka ze spec (§7, eksport/backup danych):** przycisk
 "Eksportuj dane" w Profilu zapisuje `{person, goals, settings}` do JSON —
 działa w prawdziwej appce (przeglądarka/PWA), nie w podglądzie artifact
-(pobrania zablokowane przez sandbox).
+(pobrania zablokowane przez sandbox). To samo ograniczenie dotyczy linku
+"Dodaj do Kalendarza" z kroku 10 (`data:` URI) — działa na prawdziwym
+iPhonie w Safari, w podglądzie artifact nic nie zrobi.
 
 **Sekcje wymagające backendu:** "Konto i połączenie z partnerem" (status
 z lokalnych danych, rozłączanie/parowanie nieaktywne) i mechanizm push w
@@ -41,6 +43,26 @@ już sparowana w demo) zamiast udawać działające generowanie kodu zaproszenia
 — realne parowanie kont wymaga backendu (krok 7), zgodnie z tym samym
 podejściem co w Profilu. Samouczek (4 karty funkcji) można też uruchomić
 ponownie w dowolnym momencie z Profilu → Ustawienia.
+
+**Uwaga architektoniczna (Integracja z kalendarzem telefonu):** apka celuje
+wyłącznie w iPhone'a (decyzja użytkownika), więc krok 10 nie próbuje być
+uniwersalny. Przeglądarka nie ma API do zapisu wprost w natywnym kalendarzu
+— to świadome ograniczenie bezpieczeństwa, którego żadna appka webowa nie
+omija. Realny, działający sposób na iOS: cel z włączonym „Sync z
+kalendarzem telefonu” (przełącznik w Kreatorze) dostaje przycisk „Dodaj do
+Kalendarza” w swoim podglądzie (Dziennik → dotknij nazwę celu) —
+`src/lib/ics.ts` generuje zdarzenie iCalendar (RFC 5545) z regułą
+powtarzania dopasowaną do kadencji celu (codziennie/konkretne dni
+tygodnia/co miesiąc; „X razy w tygodniu” nie wskazuje konkretnych dni, więc
+dostaje cotygodniowe przypomnienie z zastrzeżeniem w opisie) i podaje je
+jako link `data:text/calendar` BEZ atrybutu `download` — to sprawia, że
+Safari na iOS otwiera natywny ekran „Dodaj do kalendarza” wprost w
+przeglądarce, zamiast zwyczajnie pobierać plik. Zdarzenie startuje od
+dzisiaj (albo najbliższego pasującego dnia dla kadencji z konkretnymi
+dniami), nie od historycznej daty startu celu — apka nie przechowuje
+prawdziwej daty startu jako danych maszynowych, tylko etykietę do
+wyświetlenia, a odtwarzanie historii w kalendarzu telefonu i tak nie miałoby
+sensu (liczy się przypomnienie na przyszłość).
 
 **Uwaga architektoniczna (Kalendarz):** apka wciąż nie ma silnika
 "przełączania dnia" — Dziennik działa na jednym żywym "dziś" bez
