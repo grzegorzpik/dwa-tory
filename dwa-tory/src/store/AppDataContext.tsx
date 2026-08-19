@@ -1,6 +1,11 @@
-// Centralny stan aplikacji: wczytanie z IndexedDB, seed przy pierwszym
-// starcie, mutacje Dziennika z natychmiastowym zapisem lokalnym (spec §8:
+// Centralny stan aplikacji: wczytanie z IndexedDB, bootstrap przy pierwszym
+// logowaniu, mutacje Dziennika z natychmiastowym zapisem lokalnym (spec §8:
 // tryb offline — appka działa i pokazuje dane bez sieci).
+//
+// Backend Etap 3: userId pochodzi teraz z realnej sesji Supabase Auth
+// (App.tsx → Gate), nie z atrapy CURRENT_USER_ID='a'. Parowanie kont
+// (partner/partnerGoals) i zdalna synchronizacja celów wracają w Etapach 4-5
+// — do tego czasu partner jest zawsze null, a zapis dotyczy tylko IndexedDB.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as db from '../lib/db';
@@ -14,7 +19,8 @@ import {
   applyUndoDoneWeekly,
   nextSlotIsOccupied,
 } from '../lib/goals';
-import { seedGoals, seedNotifications, seedPeople, seedSettings } from '../lib/seedData';
+import { supabase } from '../lib/supabaseClient';
+import { PERSON_COLOR } from '../theme';
 import type { AppNotification, AppSettings, Goal, Milestone, Person } from '../types';
 
 interface MilestoneCelebration {
@@ -28,7 +34,7 @@ interface AppDataValue {
   currentUser: Person;
   partner: Person | null;
   goals: Goal[]; // cele bieżącego użytkownika
-  /** Cele partnerki — statyczne (bez backendu jeszcze nie ma z czym synchronizować), do odczytu w Kalendarzu z egzekwowanym visibleToPartner. */
+  /** Cele partnerki, do odczytu w Kalendarzu z egzekwowanym visibleToPartner. Realne dane od Etapu 4 (parowanie) / 5 (sync). */
   partnerGoals: Goal[];
   settings: AppSettings;
   justCompleted: boolean;
@@ -53,92 +59,129 @@ interface AppDataValue {
 
 const AppDataContext = createContext<AppDataValue | null>(null);
 
-const CURRENT_USER_ID = 'a'; // urządzenie należy do Grzeska — w kroku "Backend" zastąpione realnym logowaniem
+const DEFAULT_SETTINGS: AppSettings = {
+  selfTimeEnabled: false,
+  pushEnabled: true,
+  soundEnabled: true,
+  defaultCalendarView: 'mine',
+  defaultCalendarPeriod: 'week',
+  hasCompletedOnboarding: false,
+};
 
-export function AppDataProvider({ children }: { children: ReactNode }) {
+/**
+ * Wiersz w public.profiles musi istnieć zanim Etap 4 (parowanie) będzie mógł
+ * odwołać się do niego jako created_by/owner_id. Zakładany raz przy pierwszym
+ * logowaniu i odświeżany po każdej zmianie profilu (patrz updateProfile).
+ * Zapis w tle — błąd sieci nie może zablokować pracy offline.
+ */
+async function syncProfileToSupabase(person: Person) {
+  try {
+    const { error } = await supabase.from('profiles').upsert({
+      id: person.id,
+      name: person.name || 'Nowy użytkownik',
+      initials: person.initials,
+      color: person.color,
+      photo_src: person.photo?.src ?? null,
+      streak: person.streak,
+      longest_streak: person.longestStreak,
+      cheers: person.cheers,
+    });
+    if (error) console.error('Nie udało się zsynchronizować profilu z Supabase', error);
+  } catch (e) {
+    console.error('Nie udało się zsynchronizować profilu z Supabase', e);
+  }
+}
+
+export function AppDataProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [people, setPeople] = useState<Record<string, Person>>({});
   const [goals, setGoals] = useState<Goal[]>([]);
-  const [partnerGoals, setPartnerGoals] = useState<Goal[]>([]);
+  const [partnerGoals] = useState<Goal[]>([]); // realne dane partnera dopiero w Etapie 4/5
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [settings, setSettings] = useState<AppSettings>(seedSettings());
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [justCompleted, setJustCompleted] = useState(false);
   const [celebrateAllDone, setCelebrateAllDone] = useState(false);
   const [milestoneCelebration, setMilestoneCelebration] = useState<MilestoneCelebration | null>(null);
   const wasAllDone = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
-        // Seed wykonuje się co najwyżej raz na cały cykl życia modułu (patrz
-        // ensureInitialized) — bezpieczne nawet gdy ten efekt odpali się
-        // dwukrotnie (React StrictMode w developmencie).
-        await db.ensureInitialized(async () => {
-          const existing = await db.getAllPeople();
-          if (existing.length > 0) return;
-          await Promise.all(seedPeople().map(db.putPerson));
-          await Promise.all(seedGoals().map(db.putGoal));
-          await Promise.all(seedNotifications().map(db.putNotification));
-          await db.setCurrentUserId(CURRENT_USER_ID);
-          await db.putSettings(seedSettings());
-        });
+        let person = await db.getPerson(userId);
+        if (!person) {
+          person = {
+            id: userId,
+            name: '',
+            initials: '?',
+            color: PERSON_COLOR.a,
+            streak: 0,
+            longestStreak: 0,
+            cheers: 0,
+          };
+          await db.putPerson(person);
+          await db.putSettings(DEFAULT_SETTINGS);
+          void syncProfileToSupabase(person);
+        }
+        await db.setCurrentUserId(userId);
 
-        const allPeople = await db.getAllPeople();
-        const partnerId = allPeople.find((p) => p.id !== CURRENT_USER_ID)?.id;
-        const [myGoals, partnerGoalsLoaded, savedSettings, allNotifications] = await Promise.all([
-          db.getGoalsForPerson(CURRENT_USER_ID),
-          partnerId ? db.getGoalsForPerson(partnerId) : Promise.resolve([]),
+        const [myGoals, savedSettings, allNotifications] = await Promise.all([
+          db.getGoalsForPerson(userId),
           db.getSettings(),
           db.getAllNotifications(),
         ]);
-        setPeople(Object.fromEntries(allPeople.map((p) => [p.id, p])));
+        if (cancelled) return;
+        setPeople({ [userId]: person });
         setGoals(myGoals);
-        setPartnerGoals(partnerGoalsLoaded);
         setNotifications(allNotifications);
-        if (savedSettings) setSettings(savedSettings);
+        setSettings(savedSettings ?? DEFAULT_SETTINGS);
       } catch (e) {
-        // Awaryjnie: pokaż appkę z samymi danymi w pamięci zamiast zawiesić
-        // ekran ładowania, gdyby storage lokalnie zawiódł w nieoczekiwany sposób.
-        console.error('Nie udało się wczytać danych lokalnych', e);
-        const fallbackPeople = seedPeople();
-        const fallbackGoals = seedGoals();
-        setPeople(Object.fromEntries(fallbackPeople.map((p) => [p.id, p])));
-        setGoals(fallbackGoals.filter((g) => g.personId === CURRENT_USER_ID));
-        setPartnerGoals(fallbackGoals.filter((g) => g.personId !== CURRENT_USER_ID));
-        setNotifications(seedNotifications());
+        console.error('Nie udało się wczytać/zainicjalizować danych lokalnych', e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
-  const currentUser = people[CURRENT_USER_ID];
-  const partner = useMemo(() => Object.values(people).find((p) => p.id !== CURRENT_USER_ID) ?? null, [people]);
+  const currentUser = people[userId];
+  // Parowanie realnych kont wraca w Etapie 4 — do tego czasu nikt nie jest sparowany lokalnie.
+  const partner = useMemo<Person | null>(() => null, []);
 
   const persistGoal = useCallback((goal: Goal) => {
     db.putGoal(goal).catch((e) => console.error('Nie udało się zapisać celu lokalnie', e));
   }, []);
 
-  const bumpStreak = useCallback((delta: number) => {
-    setPeople((prev) => {
-      const p = prev[CURRENT_USER_ID];
-      if (!p) return prev;
-      const nextStreak = Math.max(0, p.streak + delta);
-      const updated: Person = { ...p, streak: nextStreak, longestStreak: Math.max(p.longestStreak, nextStreak) };
-      db.putPerson(updated).catch((e) => console.error('Nie udało się zapisać serii lokalnie', e));
-      return { ...prev, [CURRENT_USER_ID]: updated };
-    });
-  }, []);
+  const bumpStreak = useCallback(
+    (delta: number) => {
+      setPeople((prev) => {
+        const p = prev[userId];
+        if (!p) return prev;
+        const nextStreak = Math.max(0, p.streak + delta);
+        const updated: Person = { ...p, streak: nextStreak, longestStreak: Math.max(p.longestStreak, nextStreak) };
+        db.putPerson(updated).catch((e) => console.error('Nie udało się zapisać serii lokalnie', e));
+        return { ...prev, [userId]: updated };
+      });
+    },
+    [userId],
+  );
 
-  const updateProfile = useCallback((patch: Partial<Pick<Person, 'photo' | 'name'>>) => {
-    setPeople((prev) => {
-      const p = prev[CURRENT_USER_ID];
-      if (!p) return prev;
-      const updated: Person = { ...p, ...patch };
-      db.putPerson(updated).catch((e) => console.error('Nie udało się zapisać profilu lokalnie', e));
-      return { ...prev, [CURRENT_USER_ID]: updated };
-    });
-  }, []);
+  const updateProfile = useCallback(
+    (patch: Partial<Pick<Person, 'photo' | 'name'>>) => {
+      setPeople((prev) => {
+        const p = prev[userId];
+        if (!p) return prev;
+        const updated: Person = { ...p, ...patch };
+        db.putPerson(updated).catch((e) => console.error('Nie udało się zapisać profilu lokalnie', e));
+        void syncProfileToSupabase(updated);
+        return { ...prev, [userId]: updated };
+      });
+    },
+    [userId],
+  );
 
   const markDone = useCallback(
     (goalId: string, note: string) => {

@@ -12,6 +12,7 @@ import {
   Heart,
   Image as ImageIcon,
   Info,
+  LogOut,
   Users,
 } from 'lucide-react';
 import { Avatar } from '../components/Avatar';
@@ -24,12 +25,14 @@ import { buildExportPayload, downloadJson } from '../lib/exportData';
 import { milestonesFor } from '../lib/goals';
 import { cropImageToDataUrl } from '../lib/photo';
 import { useAppData } from '../store/AppDataContext';
+import { useAuth } from '../store/AuthContext';
 import { C } from '../theme';
 
 type RowKey = 'notifications' | 'account' | 'photo' | 'selfTime' | 'calendarView' | 'about' | 'tutorial';
 
 export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
   const { currentUser, partner, goals, settings, updateSettings, updateProfile } = useAppData();
+  const { signOut } = useAuth();
   const milestonesReached = goals.reduce((sum, g) => sum + milestonesFor(g).filter((m) => m.done).length, 0);
   const [expanded, setExpanded] = useState<Set<RowKey>>(new Set());
   const [cropping, setCropping] = useState<string | null>(null); // surowy src podczas kadrowania
@@ -135,6 +138,14 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
             ) : (
               <div className="font-body text-[10px]" style={{ color: C.muted }}>Łączenie z partnerką trafi tu razem z onboardingiem (krok 9).</div>
             )}
+
+            <button
+              onClick={signOut}
+              className="w-full font-body text-[11px] py-2 mt-2.5 rounded-lg bg-transparent cursor-pointer flex items-center justify-center gap-1.5"
+              style={{ border: `1px solid ${C.line}`, color: C.muted, minHeight: 44 }}
+            >
+              <LogOut size={13} /> Wyloguj
+            </button>
           </SettingsRow>
 
           <SettingsRow icon={Camera} title="Zdjęcie profilowe" expanded={expanded.has('photo')} onToggle={() => toggleRow('photo')}>
