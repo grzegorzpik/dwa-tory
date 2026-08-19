@@ -1,5 +1,4 @@
-# I-sTep
-Wstępne prototypy i dokumentacja
+
 
 ## Dwa Tory (PWA)
 Aplikacja "Dwa Tory" (śledzenie celów dla dwóch osób) jest budowana w
