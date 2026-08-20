@@ -27,7 +27,7 @@ export async function createInviteCode(userId: string): Promise<MyInviteCode> {
   const code = generateCode();
   const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60_000).toISOString();
   const { error } = await supabase.from('invite_codes').insert({ code, created_by: userId, expires_at: expiresAt });
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return { code, expiresAt };
 }
 
@@ -44,7 +44,7 @@ export interface PairingStatus {
 
 export async function fetchMyPairing(): Promise<PairingStatus | null> {
   const { data, error } = await supabase.rpc('my_pairing');
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   const row = data?.[0];
   if (!row) return null;
   return {
@@ -64,5 +64,5 @@ export async function fetchMyPairing(): Promise<PairingStatus | null> {
 
 export async function disconnectPair(pairId: string): Promise<void> {
   const { error } = await supabase.from('pairs').delete().eq('id', pairId);
-  if (error) throw error;
+  if (error) throw new Error(error.message);
 }

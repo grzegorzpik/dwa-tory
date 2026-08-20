@@ -44,23 +44,23 @@ function goalToRow(goal: Goal, ownerId: string) {
 /** Upsert celu + (jeśli się zmienił) dzisiejszego wpisu historii — WYSTARCZA po markDone/przesuń/odpuść, bo to jedyny dzień, który te akcje ruszają (patrz lib/goals.ts: logToday). */
 export async function pushGoal(goal: Goal, ownerId: string): Promise<void> {
   const { error } = await supabase.from('goals').upsert(goalToRow(goal, ownerId));
-  if (error) throw error;
+  if (error) throw new Error(error.message);
 
   const key = ymdKey(today());
   const status = goal.history?.[key];
   if (status) {
     const { error: iErr } = await supabase.from('instances').upsert({ goal_id: goal.id, owner_id: ownerId, date: key, status });
-    if (iErr) throw iErr;
+    if (iErr) throw new Error(iErr.message);
   } else {
     const { error: dErr } = await supabase.from('instances').delete().eq('goal_id', goal.id).eq('date', key);
-    if (dErr) throw dErr;
+    if (dErr) throw new Error(dErr.message);
   }
 }
 
 /** Kamienie — proste delete-then-insert (małe liczby na cel, wołane tylko z Kreatora/Edytora, nie przy każdym markDone). */
 export async function pushGoalMilestones(goal: Goal): Promise<void> {
   const { error: delErr } = await supabase.from('milestones').delete().eq('goal_id', goal.id);
-  if (delErr) throw delErr;
+  if (delErr) throw new Error(delErr.message);
   if (goal.milestones.length === 0) return;
   const rows = goal.milestones.map((m, i) => ({
     id: m.id,
@@ -71,12 +71,12 @@ export async function pushGoalMilestones(goal: Goal): Promise<void> {
     sort_order: i,
   }));
   const { error } = await supabase.from('milestones').insert(rows);
-  if (error) throw error;
+  if (error) throw new Error(error.message);
 }
 
 export async function pushGoalDelete(goalId: string): Promise<void> {
   const { error } = await supabase.from('goals').delete().eq('id', goalId);
-  if (error) throw error;
+  if (error) throw new Error(error.message);
 }
 
 interface GoalRow {
@@ -169,7 +169,7 @@ function rowToGoal(row: GoalRow, milestoneRows: MilestoneRow[], instanceRows: In
  */
 export async function pullGoalsForOwner(ownerId: string): Promise<Goal[]> {
   const { data: goalRows, error } = await supabase.from('goals').select('*').eq('owner_id', ownerId);
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   if (!goalRows || goalRows.length === 0) return [];
 
   const goalIds = goalRows.map((g) => g.id);
@@ -177,8 +177,8 @@ export async function pullGoalsForOwner(ownerId: string): Promise<Goal[]> {
     supabase.from('milestones').select('*').in('goal_id', goalIds),
     supabase.from('instances').select('goal_id, date, status').in('goal_id', goalIds),
   ]);
-  if (milestonesRes.error) throw milestonesRes.error;
-  if (instancesRes.error) throw instancesRes.error;
+  if (milestonesRes.error) throw new Error(milestonesRes.error.message);
+  if (instancesRes.error) throw new Error(instancesRes.error.message);
 
   const milestonesByGoal = new Map<string, MilestoneRow[]>();
   for (const m of milestonesRes.data ?? []) {
