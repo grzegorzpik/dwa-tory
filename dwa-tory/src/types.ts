@@ -102,6 +102,8 @@ export interface Goal {
    * prawdziwe dane zamiast fikcyjnych.
    */
   history?: Record<string, 'done' | 'moved' | 'skipped'>;
+  /** ISO timestamp ostatniego zapisu — napędza "ostatni zapis wygrywa" przy synchronizacji z Supabase (Backend Etap 5). */
+  updatedAt?: string;
 }
 
 export interface MilestoneWithDone extends Milestone {

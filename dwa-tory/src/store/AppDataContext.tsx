@@ -3,9 +3,10 @@
 // tryb offline — appka działa i pokazuje dane bez sieci).
 //
 // Backend Etap 3: userId pochodzi teraz z realnej sesji Supabase Auth
-// (App.tsx → Gate), nie z atrapy CURRENT_USER_ID='a'. Parowanie kont
-// (partner/partnerGoals) i zdalna synchronizacja celów wracają w Etapach 4-5
-// — do tego czasu partner jest zawsze null, a zapis dotyczy tylko IndexedDB.
+// (App.tsx → Gate), nie z atrapy CURRENT_USER_ID='a'. Etap 4: partner/pairId
+// to realny stan parowania. Etap 5: własne cele scalają się z Supabase przy
+// starcie (ostatni zapis wygrywa po updatedAt), cele partnerki dochodzą przez
+// pullGoalsForOwner + Realtime (RLS egzekwuje visibleToPartner).
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import * as db from '../lib/db';
@@ -19,6 +20,7 @@ import {
   applyUndoDoneWeekly,
   nextSlotIsOccupied,
 } from '../lib/goals';
+import { pullGoalsForOwner, pushGoal, pushGoalDelete, pushGoalMilestones } from '../lib/goalsSync';
 import { disconnectPair, fetchMyPairing } from '../lib/pairing';
 import { supabase } from '../lib/supabaseClient';
 import { PERSON_COLOR } from '../theme';
@@ -41,7 +43,7 @@ interface AppDataValue {
   /** Rozłącza bieżącą parę (spec: zwalnia oboje do ponownego parowania). */
   disconnectPartner: () => Promise<void>;
   goals: Goal[]; // cele bieżącego użytkownika
-  /** Cele partnerki, do odczytu w Kalendarzu z egzekwowanym visibleToPartner. Realne dane od Etapu 5 (sync). */
+  /** Cele partnerki (z Supabase, RLS egzekwuje visibleToPartner), do odczytu w Kalendarzu. Aktualizuje się przez Realtime. */
   partnerGoals: Goal[];
   settings: AppSettings;
   justCompleted: boolean;
@@ -76,6 +78,39 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 /**
+ * Scala lokalne cele z tymi z Supabase (nowe urządzenie / powrót online):
+ * ostatni zapis wygrywa po Goal.updatedAt. Gdy lokalna wersja jest nowsza,
+ * dopycha ją z powrotem na serwer, żeby oba miejsca się wyrównały — bez tego
+ * edycja zrobiona offline nigdy by się nie zsynchronizowała.
+ */
+async function reconcileOwnGoals(userId: string, localGoals: Goal[]): Promise<Goal[]> {
+  const remoteGoals = await pullGoalsForOwner(userId);
+  const localById = new Map(localGoals.map((g) => [g.id, g]));
+  const remoteById = new Map(remoteGoals.map((g) => [g.id, g]));
+  const merged: Goal[] = [];
+
+  for (const id of new Set([...localById.keys(), ...remoteById.keys()])) {
+    const local = localById.get(id);
+    const remote = remoteById.get(id);
+    if (local && remote) {
+      const localTime = local.updatedAt ? Date.parse(local.updatedAt) : 0;
+      const remoteTime = remote.updatedAt ? Date.parse(remote.updatedAt) : 0;
+      if (localTime >= remoteTime) {
+        merged.push(local);
+        void pushGoal(local, userId).catch((e) => console.error('Nie udało się dopchnąć lokalnej zmiany celu do Supabase', e));
+      } else {
+        merged.push(remote);
+      }
+    } else {
+      merged.push(local ?? remote!);
+    }
+  }
+
+  await Promise.all(merged.map((g) => db.putGoal(g)));
+  return merged;
+}
+
+/**
  * Wiersz w public.profiles musi istnieć zanim Etap 4 (parowanie) będzie mógł
  * odwołać się do niego jako created_by/owner_id. Zakładany raz przy pierwszym
  * logowaniu i odświeżany po każdej zmianie profilu (patrz updateProfile).
@@ -105,7 +140,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   const [goals, setGoals] = useState<Goal[]>([]);
   const [partner, setPartner] = useState<Person | null>(null);
   const [pairId, setPairId] = useState<string | null>(null);
-  const [partnerGoals] = useState<Goal[]>([]); // realne dane partnera dopiero w Etapie 5 (sync)
+  const [partnerGoals, setPartnerGoals] = useState<Goal[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [justCompleted, setJustCompleted] = useState(false);
@@ -145,6 +180,14 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         setGoals(myGoals);
         setNotifications(allNotifications);
         setSettings(savedSettings ?? DEFAULT_SETTINGS);
+
+        // Dociąga/scala z Supabase w tle — appka już pokazuje dane lokalne,
+        // to tylko dogania resztę (nowe urządzenie, zmiany zrobione offline gdzie indziej).
+        reconcileOwnGoals(userId, myGoals)
+          .then((merged) => {
+            if (!cancelled) setGoals(merged);
+          })
+          .catch((e) => console.error('Nie udało się zsynchronizować celów z Supabase', e));
       } catch (e) {
         console.error('Nie udało się wczytać/zainicjalizować danych lokalnych', e);
       } finally {
@@ -182,9 +225,48 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     setPartner(null);
   }, [pairId]);
 
-  const persistGoal = useCallback((goal: Goal) => {
-    db.putGoal(goal).catch((e) => console.error('Nie udało się zapisać celu lokalnie', e));
+  const partnerId = partner?.id ?? null;
+
+  const refreshPartnerGoals = useCallback(async (id: string) => {
+    try {
+      setPartnerGoals(await pullGoalsForOwner(id));
+    } catch (e) {
+      console.error('Nie udało się pobrać celów partnerki', e);
+    }
   }, []);
+
+  // Pierwsze wczytanie celów partnerki (RLS z Etapu 2 i tak zwróci tylko
+  // visible_to_partner=true) + Realtime, żeby dowiedzieć się o zmianach bez
+  // ręcznego odświeżania (spec §6, krok 5) — nie tylko w chwili parowania.
+  useEffect(() => {
+    if (!partnerId) {
+      setPartnerGoals([]);
+      return;
+    }
+    void refreshPartnerGoals(partnerId);
+
+    const channel = supabase
+      .channel(`partner-goals-${partnerId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `owner_id=eq.${partnerId}` }, () => void refreshPartnerGoals(partnerId))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'instances', filter: `owner_id=eq.${partnerId}` }, () => void refreshPartnerGoals(partnerId))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'milestones' }, () => void refreshPartnerGoals(partnerId))
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [partnerId, refreshPartnerGoals]);
+
+  /** Stempluje updatedAt, zapisuje lokalnie i wypycha w tle do Supabase; zwraca ostemplowany cel do wstawienia w stan React. */
+  const persistGoal = useCallback(
+    (goal: Goal): Goal => {
+      const stamped: Goal = { ...goal, updatedAt: new Date().toISOString() };
+      db.putGoal(stamped).catch((e) => console.error('Nie udało się zapisać celu lokalnie', e));
+      void pushGoal(stamped, userId).catch((e) => console.error('Nie udało się zsynchronizować celu z Supabase', e));
+      return stamped;
+    },
+    [userId],
+  );
 
   const bumpStreak = useCallback(
     (delta: number) => {
@@ -221,11 +303,11 @@ export function AppDataProvider({ userId, children }: { userId: string; children
           if (g.id !== goalId) return g;
           // "X razy w tygodniu" ma osobny licznik tygodniowy — nie pojedynczy slot dnia (patrz lib/goals.ts).
           const { goal, reachedMilestone } = g.cadenceType === 'perWeekCount' ? applyMarkDoneWeekly(g, note) : applyMarkDone(g, note);
-          persistGoal(goal);
+          const stamped = persistGoal(goal);
           if (reachedMilestone) {
             setMilestoneCelebration({ goalTitle: goal.title, milestone: reachedMilestone, color: goal.type === 'termin' ? '#E8724F' : '#8AAE9E' });
           }
-          return goal;
+          return stamped;
         }),
       );
       bumpStreak(1);
@@ -241,8 +323,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         prev.map((g) => {
           if (g.id !== goalId) return g;
           const goal = g.cadenceType === 'perWeekCount' ? applyUndoDoneWeekly(g) : applyUndoDone(g);
-          persistGoal(goal);
-          return goal;
+          return persistGoal(goal);
         }),
       );
       bumpStreak(-1);
@@ -258,9 +339,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
       setGoals((prev) =>
         prev.map((g) => {
           if (g.id !== goalId) return g;
-          const updated = applySimpleMove(g);
-          persistGoal(updated);
-          return updated;
+          return persistGoal(applySimpleMove(g));
         }),
       );
       return false;
@@ -273,9 +352,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
       setGoals((prev) =>
         prev.map((g) => {
           if (g.id !== goalId) return g;
-          const updated = applyDoubleUp(g);
-          persistGoal(updated);
-          return updated;
+          return persistGoal(applyDoubleUp(g));
         }),
       );
     },
@@ -287,9 +364,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
       setGoals((prev) =>
         prev.map((g) => {
           if (g.id !== goalId) return g;
-          const updated = applyDrop(g, which);
-          persistGoal(updated);
-          return updated;
+          return persistGoal(applyDrop(g, which));
         }),
       );
     },
@@ -298,8 +373,9 @@ export function AppDataProvider({ userId, children }: { userId: string; children
 
   const saveGoal = useCallback(
     (goal: Goal) => {
-      setGoals((prev) => (prev.some((g) => g.id === goal.id) ? prev.map((g) => (g.id === goal.id ? goal : g)) : [...prev, goal]));
-      persistGoal(goal);
+      const stamped = persistGoal(goal);
+      void pushGoalMilestones(stamped).catch((e) => console.error('Nie udało się zsynchronizować kamieni z Supabase', e));
+      setGoals((prev) => (prev.some((g) => g.id === stamped.id) ? prev.map((g) => (g.id === stamped.id ? stamped : g)) : [...prev, stamped]));
     },
     [persistGoal],
   );
@@ -307,6 +383,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   const removeGoal = useCallback((goalId: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== goalId));
     db.deleteGoal(goalId).catch((e) => console.error('Nie udało się usunąć celu lokalnie', e));
+    void pushGoalDelete(goalId).catch((e) => console.error('Nie udało się usunąć celu z Supabase', e));
   }, []);
 
   const sendReply = useCallback((notificationId: string, text: string) => {
