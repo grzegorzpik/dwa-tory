@@ -7,7 +7,7 @@
 // (partner/partnerGoals) i zdalna synchronizacja celów wracają w Etapach 4-5
 // — do tego czasu partner jest zawsze null, a zapis dotyczy tylko IndexedDB.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import * as db from '../lib/db';
 import {
   applyDoubleUp,
@@ -19,6 +19,7 @@ import {
   applyUndoDoneWeekly,
   nextSlotIsOccupied,
 } from '../lib/goals';
+import { disconnectPair, fetchMyPairing } from '../lib/pairing';
 import { supabase } from '../lib/supabaseClient';
 import { PERSON_COLOR } from '../theme';
 import type { AppNotification, AppSettings, Goal, Milestone, Person } from '../types';
@@ -33,8 +34,14 @@ interface AppDataValue {
   loading: boolean;
   currentUser: Person;
   partner: Person | null;
+  /** null, gdy niesparowany — potrzebne do rozłączenia (DELETE FROM pairs). */
+  pairId: string | null;
+  /** Odświeża status parowania z Supabase (my_pairing()) — wołane po wygenerowaniu/wpisaniu kodu. */
+  refreshPairing: () => Promise<void>;
+  /** Rozłącza bieżącą parę (spec: zwalnia oboje do ponownego parowania). */
+  disconnectPartner: () => Promise<void>;
   goals: Goal[]; // cele bieżącego użytkownika
-  /** Cele partnerki, do odczytu w Kalendarzu z egzekwowanym visibleToPartner. Realne dane od Etapu 4 (parowanie) / 5 (sync). */
+  /** Cele partnerki, do odczytu w Kalendarzu z egzekwowanym visibleToPartner. Realne dane od Etapu 5 (sync). */
   partnerGoals: Goal[];
   settings: AppSettings;
   justCompleted: boolean;
@@ -96,7 +103,9 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   const [loading, setLoading] = useState(true);
   const [people, setPeople] = useState<Record<string, Person>>({});
   const [goals, setGoals] = useState<Goal[]>([]);
-  const [partnerGoals] = useState<Goal[]>([]); // realne dane partnera dopiero w Etapie 4/5
+  const [partner, setPartner] = useState<Person | null>(null);
+  const [pairId, setPairId] = useState<string | null>(null);
+  const [partnerGoals] = useState<Goal[]>([]); // realne dane partnera dopiero w Etapie 5 (sync)
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [justCompleted, setJustCompleted] = useState(false);
@@ -148,8 +157,30 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   }, [userId]);
 
   const currentUser = people[userId];
-  // Parowanie realnych kont wraca w Etapie 4 — do tego czasu nikt nie jest sparowany lokalnie.
-  const partner = useMemo<Person | null>(() => null, []);
+
+  const refreshPairing = useCallback(async () => {
+    try {
+      const pairing = await fetchMyPairing();
+      setPairId(pairing?.pairId ?? null);
+      setPartner(pairing?.partner ?? null);
+    } catch (e) {
+      // Offline albo Supabase chwilowo niedostępne — appka ma dalej działać z tym, co już wie.
+      console.error('Nie udało się pobrać statusu parowania', e);
+    }
+  }, []);
+
+  // Status parowania sprawdzamy przy każdym starcie z nowym userId — nie
+  // blokuje `loading` (to tylko dane lokalne), bo appka ma działać offline-first.
+  useEffect(() => {
+    void refreshPairing();
+  }, [userId, refreshPairing]);
+
+  const disconnectPartner = useCallback(async () => {
+    if (!pairId) return;
+    await disconnectPair(pairId);
+    setPairId(null);
+    setPartner(null);
+  }, [pairId]);
 
   const persistGoal = useCallback((goal: Goal) => {
     db.putGoal(goal).catch((e) => console.error('Nie udało się zapisać celu lokalnie', e));
@@ -319,6 +350,9 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     loading,
     currentUser,
     partner,
+    pairId,
+    refreshPairing,
+    disconnectPartner,
     goals,
     partnerGoals,
     settings,

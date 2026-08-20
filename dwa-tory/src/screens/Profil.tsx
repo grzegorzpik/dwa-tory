@@ -2,11 +2,12 @@
 // liczonym postępem), Ustawienia (jeden wzorzec rozwijanych pozycji),
 // eksport danych (domyka lukę ze spec §7).
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Bell,
   Camera,
   CalendarDays,
+  Copy,
   Download,
   GraduationCap,
   Heart,
@@ -24,6 +25,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch';
 import { buildExportPayload, downloadJson } from '../lib/exportData';
 import { milestonesFor } from '../lib/goals';
 import { cropImageToDataUrl } from '../lib/photo';
+import { CODE_TTL_MINUTES, createInviteCode, redeemInviteCode } from '../lib/pairing';
 import { useAppData } from '../store/AppDataContext';
 import { useAuth } from '../store/AuthContext';
 import { C } from '../theme';
@@ -31,11 +33,55 @@ import { C } from '../theme';
 type RowKey = 'notifications' | 'account' | 'photo' | 'selfTime' | 'calendarView' | 'about' | 'tutorial';
 
 export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
-  const { currentUser, partner, goals, settings, updateSettings, updateProfile } = useAppData();
+  const { currentUser, partner, refreshPairing, disconnectPartner, goals, settings, updateSettings, updateProfile } = useAppData();
   const { signOut } = useAuth();
   const milestonesReached = goals.reduce((sum, g) => sum + milestonesFor(g).filter((m) => m.done).length, 0);
   const [expanded, setExpanded] = useState<Set<RowKey>>(new Set());
   const [cropping, setCropping] = useState<string | null>(null); // surowy src podczas kadrowania
+
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [myCode, setMyCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [enteredCode, setEnteredCode] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  const [pairError, setPairError] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const generateCode = async () => {
+    setGeneratingCode(true);
+    setPairError('');
+    try {
+      setMyCode(await createInviteCode(currentUser.id));
+    } catch (e) {
+      setPairError(e instanceof Error ? e.message : 'Nie udało się wygenerować kodu.');
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  const submitCode = async () => {
+    if (!enteredCode.trim()) return;
+    setRedeeming(true);
+    setPairError('');
+    try {
+      await redeemInviteCode(enteredCode);
+      setEnteredCode('');
+      await refreshPairing();
+    } catch (e) {
+      setPairError(e instanceof Error ? e.message : 'Nie udało się połączyć.');
+    } finally {
+      setRedeeming(false);
+    }
+  };
+
+  // Jak w Onboardingu — dopóki własny kod czeka na wpisanie, sprawdzaj co
+  // kilka sekund, czy partnerka się już połączyła (pełny Realtime: Etap 5).
+  useEffect(() => {
+    if (!myCode || partner) return;
+    const id = setInterval(() => void refreshPairing(), 4000);
+    return () => clearInterval(id);
+  }, [myCode, partner, refreshPairing]);
 
   const toggleRow = (key: RowKey) =>
     setExpanded((prev) => {
@@ -124,19 +170,99 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
                     <div className="font-body text-[9px]" style={{ color: C.ok }}>Połączono</div>
                   </div>
                 </div>
-                <button
-                  disabled
-                  className="w-full font-body text-[11px] py-2 rounded-lg bg-transparent cursor-not-allowed"
-                  style={{ border: `1px solid ${C.line}`, color: C.muted, opacity: 0.6 }}
-                >
-                  Rozłącz
-                </button>
-                <div className="font-body text-[9px]" style={{ color: C.muted }}>
-                  Rozłączanie i parowanie kont wymagają backendu (krok 7) — status pokazany tu jest z lokalnych danych.
-                </div>
+                {confirmDisconnect ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        setDisconnecting(true);
+                        try {
+                          await disconnectPartner();
+                          setConfirmDisconnect(false);
+                        } catch (e) {
+                          setPairError(e instanceof Error ? e.message : 'Nie udało się rozłączyć.');
+                        } finally {
+                          setDisconnecting(false);
+                        }
+                      }}
+                      disabled={disconnecting}
+                      className="flex-1 font-body text-[11px] py-2 rounded-lg border-0 cursor-pointer"
+                      style={{ background: C.over, color: '#15241F', opacity: disconnecting ? 0.6 : 1, minHeight: 44 }}
+                    >
+                      {disconnecting ? 'Rozłączam…' : 'Tak, rozłącz'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDisconnect(false)}
+                      className="flex-1 font-body text-[11px] py-2 rounded-lg bg-transparent cursor-pointer"
+                      style={{ border: `1px solid ${C.line}`, color: C.muted, minHeight: 44 }}
+                    >
+                      Anuluj
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDisconnect(true)}
+                    className="w-full font-body text-[11px] py-2 rounded-lg bg-transparent cursor-pointer"
+                    style={{ border: `1px solid ${C.line}`, color: C.muted, minHeight: 44 }}
+                  >
+                    Rozłącz
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="font-body text-[10px]" style={{ color: C.muted }}>Łączenie z partnerką trafi tu razem z onboardingiem (krok 9).</div>
+              <div className="flex flex-col gap-2.5">
+                <div className="rounded-xl p-3" style={{ background: C.surface2 }}>
+                  {myCode ? (
+                    <div className="flex flex-col items-center text-center gap-1.5">
+                      <div className="font-body text-[10px]" style={{ color: C.muted }}>Podaj partnerce ten kod (ważny {CODE_TTL_MINUTES} min):</div>
+                      <div className="font-display text-2xl tracking-widest" style={{ color: C.gold }}>{myCode.code}</div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard?.writeText(myCode.code).then(() => {
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 1500);
+                          });
+                        }}
+                        className="font-body text-[10px] bg-transparent border-0 cursor-pointer flex items-center gap-1"
+                        style={{ color: C.muted, minHeight: 44 }}
+                      >
+                        <Copy size={11} /> {copied ? 'Skopiowano' : 'Kopiuj kod'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={generateCode}
+                      disabled={generatingCode}
+                      className="w-full font-body text-[11px] py-2 rounded-lg border-0 cursor-pointer"
+                      style={{ background: C.gold, color: '#15241F', opacity: generatingCode ? 0.6 : 1, minHeight: 44 }}
+                    >
+                      {generatingCode ? 'Generuję…' : 'Wygeneruj kod'}
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    value={enteredCode}
+                    onChange={(e) => setEnteredCode(e.target.value.toUpperCase())}
+                    placeholder="Wpisz kod od partnerki"
+                    maxLength={6}
+                    className="flex-1 font-body text-[11px] px-2.5 py-2 rounded-lg outline-none tracking-widest"
+                    style={{ background: C.surface2, color: C.text, border: `1px solid ${C.line}` }}
+                  />
+                  <button
+                    onClick={submitCode}
+                    disabled={!enteredCode.trim() || redeeming}
+                    className="font-body text-[11px] px-3 rounded-lg border-0 cursor-pointer"
+                    style={{ background: C.gold, color: '#15241F', opacity: !enteredCode.trim() || redeeming ? 0.6 : 1, minHeight: 44 }}
+                  >
+                    {redeeming ? '…' : 'Połącz'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {pairError && (
+              <div className="font-body text-[10px] mt-2" style={{ color: C.over }}>{pairError}</div>
             )}
 
             <button

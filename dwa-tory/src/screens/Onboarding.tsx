@@ -5,14 +5,15 @@
 // tego, że w tej appce partnerka jest już sparowana lokalnie (spec §7:
 // prawdziwe parowanie kont wymaga backendu — krok 7, tu tylko status).
 
-import { useState } from 'react';
-import { Camera, Check, ChevronLeft, ChevronRight, Heart, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Camera, Check, ChevronLeft, ChevronRight, Copy, Heart, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { Avatar } from '../components/Avatar';
 import { PhotoCropper } from '../components/PhotoCropper';
 import { SelectChip } from '../components/SelectChip';
 import { TutorialPreview } from '../components/TutorialPreview';
 import { TUTORIAL_STEPS } from '../lib/tutorialSteps';
 import { cropImageToDataUrl } from '../lib/photo';
+import { CODE_TTL_MINUTES, createInviteCode, redeemInviteCode } from '../lib/pairing';
 import { useAppData } from '../store/AppDataContext';
 import { C } from '../theme';
 import type { Photo } from '../types';
@@ -20,12 +21,56 @@ import type { Photo } from '../types';
 const TOTAL_STEPS = 4 + 1 + TUTORIAL_STEPS.length + 1; // powitanie, profil, partner, czas dla siebie, intro, 4x samouczek, koniec
 
 export function Onboarding() {
-  const { currentUser, partner, updateProfile, updateSettings } = useAppData();
+  const { currentUser, partner, refreshPairing, updateProfile, updateSettings } = useAppData();
   const [step, setStep] = useState(0);
   const [name, setName] = useState(currentUser?.name ?? '');
   const [photo, setPhoto] = useState<Photo | undefined>(currentUser?.photo);
   const [cropping, setCropping] = useState<string | null>(null);
   const [selfTimeChoice, setSelfTimeChoice] = useState<boolean | null>(null);
+
+  // Parowanie — spec §5.1: "Wygeneruj kod" LUB pole na kod od partnerki, zawsze obie opcje naraz.
+  const [myCode, setMyCode] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [enteredCode, setEnteredCode] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  const [pairError, setPairError] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const generateCode = async () => {
+    setGenerating(true);
+    setPairError('');
+    try {
+      setMyCode(await createInviteCode(currentUser.id));
+    } catch (e) {
+      setPairError(e instanceof Error ? e.message : 'Nie udało się wygenerować kodu.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const submitCode = async () => {
+    if (!enteredCode.trim()) return;
+    setRedeeming(true);
+    setPairError('');
+    try {
+      await redeemInviteCode(enteredCode);
+      setEnteredCode('');
+      await refreshPairing();
+    } catch (e) {
+      setPairError(e instanceof Error ? e.message : 'Nie udało się połączyć.');
+    } finally {
+      setRedeeming(false);
+    }
+  };
+
+  // Dopóki pokazujemy własny kod i nikt jeszcze go nie wpisał, sprawdzaj co
+  // kilka sekund, czy partnerka już się połączyła — bez tego trzeba by
+  // ręcznie odświeżać appkę (pełny Realtime dochodzi w Etapie 5).
+  useEffect(() => {
+    if (!myCode || partner) return;
+    const id = setInterval(() => void refreshPairing(), 4000);
+    return () => clearInterval(id);
+  }, [myCode, partner, refreshPairing]);
 
   const next = () => setStep((s) => s + 1);
   const back = () => setStep((s) => Math.max(0, s - 1));
@@ -165,8 +210,67 @@ export function Onboarding() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl p-4 font-body text-[11px]" style={{ background: C.surface, border: `1px solid ${C.line}`, color: C.muted }}>
-                Parowanie kont wymaga backendu — wróć do tego później w Profilu, gdy będzie dostępne.
+              <div className="flex flex-col gap-3">
+                <div className="rounded-2xl p-3.5" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+                  {myCode ? (
+                    <div className="flex flex-col items-center text-center gap-1.5">
+                      <div className="font-body text-[10px]" style={{ color: C.muted }}>Podaj partnerce ten kod (ważny {CODE_TTL_MINUTES} min):</div>
+                      <div className="font-display text-3xl tracking-widest" style={{ color: C.gold }}>{myCode.code}</div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard?.writeText(myCode.code).then(() => {
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 1500);
+                          });
+                        }}
+                        className="font-body text-[10px] bg-transparent border-0 cursor-pointer flex items-center gap-1"
+                        style={{ color: C.muted, minHeight: 44 }}
+                      >
+                        <Copy size={11} /> {copied ? 'Skopiowano' : 'Kopiuj kod'}
+                      </button>
+                      <div className="font-body text-[10px]" style={{ color: C.muted }}>Czekamy, aż go wpisze…</div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={generateCode}
+                      disabled={generating}
+                      className="w-full font-body text-[11px] py-2.5 rounded-lg border-0 cursor-pointer"
+                      style={{ background: C.gold, color: '#15241F', opacity: generating ? 0.6 : 1, minHeight: 44 }}
+                    >
+                      {generating ? 'Generuję…' : 'Wygeneruj kod'}
+                    </button>
+                  )}
+                </div>
+
+                <div className="font-body text-[10px] text-center" style={{ color: C.muted }}>albo</div>
+
+                <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+                  <div className="font-body text-[10px]" style={{ color: C.muted }}>Masz kod od partnerki?</div>
+                  <div className="flex gap-2">
+                    <input
+                      value={enteredCode}
+                      onChange={(e) => setEnteredCode(e.target.value.toUpperCase())}
+                      placeholder="np. AB3F7K"
+                      maxLength={6}
+                      className="flex-1 font-body text-sm px-3 py-2 rounded-lg outline-none tracking-widest"
+                      style={{ background: C.bg, color: C.text, border: `1px solid ${C.line}` }}
+                    />
+                    <button
+                      onClick={submitCode}
+                      disabled={!enteredCode.trim() || redeeming}
+                      className="font-body text-[11px] px-3 rounded-lg border-0 cursor-pointer"
+                      style={{ background: C.gold, color: '#15241F', opacity: !enteredCode.trim() || redeeming ? 0.6 : 1, minWidth: 44, minHeight: 44 }}
+                    >
+                      {redeeming ? '…' : 'Połącz'}
+                    </button>
+                  </div>
+                </div>
+
+                {pairError && (
+                  <div className="font-body text-[10px]" style={{ color: C.over }}>{pairError}</div>
+                )}
+
+                <div className="font-body text-[10px]" style={{ color: C.muted }}>Możesz to zrobić później — połączycie się w Profilu.</div>
               </div>
             )}
           </div>
