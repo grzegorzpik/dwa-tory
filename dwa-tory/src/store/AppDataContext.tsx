@@ -166,8 +166,13 @@ export function AppDataProvider({ userId, children }: { userId: string; children
           };
           await db.putPerson(person);
           await db.putSettings(DEFAULT_SETTINGS);
-          void syncProfileToSupabase(person);
         }
+        // Zawsze próbuj zsynchronizować profil przy starcie, nie tylko przy
+        // pierwszym lokalnym utworzeniu — inaczej jeden nieudany zapis w tle
+        // (np. chwilowy brak sieci) zostawia konto trwale bez wiersza w
+        // Supabase, blokując parowanie (invite_codes.created_by ma FK do
+        // profiles) bez żadnej ścieżki ponowienia.
+        void syncProfileToSupabase(person);
         await db.setCurrentUserId(userId);
 
         const [myGoals, savedSettings, allNotifications] = await Promise.all([
