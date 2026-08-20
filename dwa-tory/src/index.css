@@ -21,6 +21,48 @@ button {
   font-family: inherit;
 }
 
+/*
+ * Rama aplikacji. Na telefonie (poniżej 640px — czyli w praktyce zawsze na
+ * realnym urządzeniu) karta WYPEŁNIA cały widoczny viewport, bez obwódki ani
+ * zaokrągleń — przeglądarka/PWA sama jest "ramką", więc dekoracyjna karta
+ * nie ma po co istnieć i tylko psuje dopasowanie do ekranu. Dopiero od
+ * 640px (testowanie na desktopie) wraca wyśrodkowana makieta telefonu,
+ * ograniczona do min(820px, wysokość okna) — żeby nie wystawała też na
+ * niskich oknach desktopowych.
+ */
+.phone-shell {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-card {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .phone-shell {
+    padding: 2rem 0;
+  }
+  .phone-card {
+    max-width: 24rem;
+    height: min(820px, calc(100vh - 4rem));
+    height: min(820px, calc(100dvh - 4rem));
+    border-radius: 2.2rem;
+    border-width: 1px;
+    border-style: solid;
+  }
+}
+
 .font-display {
   font-family: 'Bebas Neue', sans-serif;
   letter-spacing: 0.04em;

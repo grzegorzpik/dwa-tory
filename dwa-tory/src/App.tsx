@@ -20,11 +20,8 @@ export type TabId = 'dziennik' | 'cele' | 'kalendarz' | 'profil';
 
 function PhoneFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="w-full min-h-screen flex items-center justify-center py-8" style={{ background: SHELL_BG }}>
-      <div
-        className="w-full max-w-sm overflow-hidden flex flex-col relative"
-        style={{ background: C.bg, border: `1px solid ${C.line}`, height: 820, borderRadius: '2.2rem' }}
-      >
+    <div className="phone-shell" style={{ background: SHELL_BG }}>
+      <div className="phone-card" style={{ background: C.bg, borderColor: C.line }}>
         {children}
       </div>
     </div>
