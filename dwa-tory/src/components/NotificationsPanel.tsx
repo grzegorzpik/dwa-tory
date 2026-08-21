@@ -6,14 +6,14 @@
 import { useRef, useState, type TouchEvent } from 'react';
 import { Bell, Check, ChevronLeft, Send } from 'lucide-react';
 import { Avatar } from './Avatar';
-import { canSendReply, MAX_REPLY_WORDS, REPLY_CHIPS, wordCount } from '../lib/notifications';
+import { canSendReply, formatRelativeTime, MAX_REPLY_WORDS, REPLY_CHIPS, wordCount } from '../lib/notifications';
 import { useAppData } from '../store/AppDataContext';
 import { C } from '../theme';
 
 const SWIPE_CLOSE_THRESHOLD = 40;
 
 export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { currentUser, partner, notifications, sendReply } = useAppData();
+  const { partner, notifications, sendReply } = useAppData();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const touchStartY = useRef<number | null>(null);
 
@@ -63,19 +63,18 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
       ) : (
         <div className="flex flex-col gap-2">
           {notifications.map((n) => {
-            const person = n.person === currentUser.id ? currentUser : partner;
             const draft = drafts[n.id] ?? '';
             const count = wordCount(draft);
             const overLimit = count > MAX_REPLY_WORDS;
             return (
               <div key={n.id} className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
                 <div className="flex items-center gap-2 mb-1.5">
-                  {person && <Avatar person={person} size={22} />}
+                  {partner && <Avatar person={partner} size={22} />}
                   <span className="font-body text-[12px] flex-1 min-w-0" style={{ color: C.text }}>
-                    <b>{person?.name}</b> {n.text}
+                    <b>{partner?.name}</b> {n.text}
                   </span>
                 </div>
-                <div className="font-body text-[9px] mb-2" style={{ color: C.muted }}>{n.time}</div>
+                <div className="font-body text-[9px] mb-2" style={{ color: C.muted }}>{formatRelativeTime(n.createdAt)}</div>
 
                 {n.responded ? (
                   <div className="font-body text-[11px] flex items-center gap-1.5" style={{ color: C.gold }}>

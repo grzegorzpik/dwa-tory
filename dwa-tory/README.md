@@ -28,13 +28,19 @@ iPhonie w Safari, w podglądzie artifact nic nie zrobi.
 **Co z backendu (krok 7) wciąż nie działa:** mechanizm powiadomień push
 (zapisujemy tylko preferencję w "Powiadomienia" — samo wysyłanie push
 wymaga VAPID + service workera + czegoś, co realnie je wyśle, np. Supabase
-Edge Function na triggerze bazy; nie zbudowane). Tabela `notifications` w
-schemacie (`supabase/migrations/0001_init_schema.sql`) i jej RLS
-(`0002_rls_policies.sql`) już istnieją, ale panel "Powiadomienia" (co
-partnerka zrobiła + odpowiedzi z limitem 5 słów) wciąż czyta/zapisuje
-wyłącznie lokalnie (`src/lib/db.ts`) — nic w kodzie appki jeszcze nie łączy
-go z tą tabelą, więc druga osoba w parze nie zobaczy Twoich odpowiedzi ani
-Ty jej działań. Reszta backendu (konto, parowanie, sync celów) jest w pełni
+Edge Function na triggerze bazy; nie zbudowane).
+
+Panel "Powiadomienia" (co partnerka zrobiła + odpowiedzi z limitem 5 słów)
+jest już realnie zsynchronizowany z tabelą `notifications`
+(`src/lib/notificationsSync.ts` + `AppDataContext`, pull + Realtime jak przy
+celach partnerki) — druga osoba w parze widzi Twoje odpowiedzi i odwrotnie.
+Powiadomienie trafia do partnerki przy dwóch zdarzeniach: osiągnięciu
+kamienia milowego i przesunięciu zadania (te same, które demonstrowały dane
+seed od kroku 8) — celowo NIE przy każdym zwykłym odhaczeniu nawyku, żeby
+nie zaspamować drugiej strony (apka nie ma być komunikatorem, spec §5.8).
+Tekst zdarzeń jest w czasie teraźniejszym ("kończy", "przesuwa") celowo —
+polska odmiana czasu przeszłego jest rodzajowa, a appka nie zna/nie zakłada
+płci konta. Reszta backendu (konto, parowanie, sync celów) jest w pełni
 realna — patrz `src/lib/pairing.ts`, `src/lib/goalsSync.ts`.
 
 **Uwaga architektoniczna (Onboarding):** od backendu (krok 7) `hasCompletedOnboarding`
@@ -119,7 +125,8 @@ danych daje RLS w bazie (`0002_rls_policies.sql`), nie ukrycie klucza.
 - `src/lib/kalendarz.ts` — agregacje dla Kalendarza (stan dnia, Wspólna seria, egzekwowanie widoczności dla partnerki)
 - `src/lib/photo.ts` — kadrowanie zdjęcia profilowego przez `<canvas>`
 - `src/lib/exportData.ts` — eksport danych użytkownika do JSON
-- `src/lib/notifications.ts` — limit słów i walidacja odpowiedzi na powiadomienie
+- `src/lib/notifications.ts` — limit słów, walidacja odpowiedzi, format czasu względnego
+- `src/lib/notificationsSync.ts` — sync panelu Powiadomień z Supabase (pull + Realtime)
 - `src/lib/ics.ts` — eksport celu jako zdarzenie iCalendar (krok 10, iPhone/Safari)
 - `src/lib/db.ts` — warstwa IndexedDB (lokalny cache/offline — Supabase jest źródłem prawdy, krok 7)
 - `src/lib/supabaseClient.ts` — jedyne miejsce importujące `@supabase/supabase-js`

@@ -121,9 +121,11 @@ export interface AppSettings {
 
 export interface AppNotification {
   id: string;
-  person: 'a' | 'b';
+  /** Kto wykonał akcję opisaną w `text` — realny id konta Supabase (nie 'a'/'b' z demo). */
+  actorId: string;
   text: string;
-  time: string;
+  /** ISO timestamp — sformatowany do wyświetlenia dopiero w komponencie (patrz lib/notifications.ts). */
+  createdAt: string;
   responded: boolean;
   reply?: string;
 }

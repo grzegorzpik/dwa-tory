@@ -21,6 +21,7 @@ import {
   nextSlotIsOccupied,
 } from '../lib/goals';
 import { pullGoalsForOwner, pushGoal, pushGoalDelete, pushGoalMilestones } from '../lib/goalsSync';
+import { pullNotifications, pushNotification, replyToNotification } from '../lib/notificationsSync';
 import { disconnectPair, fetchMyPairing } from '../lib/pairing';
 import { supabase } from '../lib/supabaseClient';
 import { PERSON_COLOR } from '../theme';
@@ -262,6 +263,45 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     };
   }, [partnerId, refreshPartnerGoals]);
 
+  const refreshNotifications = useCallback(
+    async (id: string) => {
+      try {
+        const remote = await pullNotifications(id);
+        // Panel pokazuje działania PARTNERKI (spec §5.8) — RLS zwraca cały
+        // wspólny feed pary (obie strony), więc własne wpisy trzeba odfiltrować
+        // tutaj. Bez tego badge/panel liczyłby własne kamienie/przesunięcia
+        // jako "nieodpowiedziane", a odpowiedź na własny wpis i tak odrzuci
+        // RLS (notifications_update_reply_by_recipient: actor_id <> auth.uid()).
+        const forMe = remote.filter((n) => n.actorId !== userId);
+        setNotifications(forMe);
+        await Promise.all(forMe.map((n) => db.putNotification(n)));
+      } catch (e) {
+        console.error('Nie udało się pobrać powiadomień', e);
+      }
+    },
+    [userId],
+  );
+
+  // Sam pull + Realtime (jak partnerGoals) — bez pairId nie ma z kim
+  // wymieniać powiadomień, więc czyścimy do pustej listy zamiast pokazywać
+  // nieaktualny lokalny cache sprzed rozłączenia.
+  useEffect(() => {
+    if (!pairId) {
+      setNotifications([]);
+      return;
+    }
+    void refreshNotifications(pairId);
+
+    const channel = supabase
+      .channel(`notifications-${pairId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `pair_id=eq.${pairId}` }, () => void refreshNotifications(pairId))
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [pairId, refreshNotifications]);
+
   /** Stempluje updatedAt, zapisuje lokalnie i wypycha w tle do Supabase; zwraca ostemplowany cel do wstawienia w stan React. */
   const persistGoal = useCallback(
     (goal: Goal): Goal => {
@@ -311,6 +351,17 @@ export function AppDataProvider({ userId, children }: { userId: string; children
           const stamped = persistGoal(goal);
           if (reachedMilestone) {
             setMilestoneCelebration({ goalTitle: goal.title, milestone: reachedMilestone, color: goal.type === 'termin' ? '#E8724F' : '#8AAE9E' });
+            // Kamień milowy to jedyny moment markDone, który uznajemy za wart
+            // powiadomienia partnerki — codzienne odhaczanie nawyku by
+            // spamowało (apka nie ma być komunikatorem, spec §5.8). Czas
+            // teraźniejszy ("kończy") zamiast przeszłego celowo — polska
+            // odmiana czasu przeszłego jest rodzajowa (kończył/kończyła), a
+            // appka nie zna płci konta.
+            if (pairId && goal.visibleToPartner) {
+              void pushNotification(pairId, userId, `kończy etap „${reachedMilestone.label}" w „${goal.title}"`).catch((e) =>
+                console.error('Nie udało się wysłać powiadomienia o kamieniu milowym', e),
+              );
+            }
           }
           return stamped;
         }),
@@ -319,7 +370,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
       setJustCompleted(true);
       setTimeout(() => setJustCompleted(false), 600);
     },
-    [persistGoal, bumpStreak],
+    [persistGoal, bumpStreak, pairId, userId],
   );
 
   const undoDone = useCallback(
@@ -347,9 +398,14 @@ export function AppDataProvider({ userId, children }: { userId: string; children
           return persistGoal(applySimpleMove(g));
         }),
       );
+      if (pairId && goal.visibleToPartner) {
+        void pushNotification(pairId, userId, `przesuwa „${goal.title}" na ${goal.cadenceSlots[1].toLowerCase()}`).catch((e) =>
+          console.error('Nie udało się wysłać powiadomienia o przesunięciu', e),
+        );
+      }
       return false;
     },
-    [goals, persistGoal],
+    [goals, persistGoal, pairId, userId],
   );
 
   const resolveDoubleUp = useCallback(
@@ -397,6 +453,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         if (n.id !== notificationId) return n;
         const updated: AppNotification = { ...n, responded: true, reply: text };
         db.putNotification(updated).catch((e) => console.error('Nie udało się zapisać odpowiedzi lokalnie', e));
+        void replyToNotification(notificationId, text).catch((e) => console.error('Nie udało się wysłać odpowiedzi', e));
         return updated;
       }),
     );

@@ -136,10 +136,11 @@ export function seedGoals(): Goal[] {
 
 /** Co partnerka zrobiła + kiedy (spec §5.8) — bez backendu statyczne, ale realne dane do odpowiedzi. */
 export function seedNotifications(): AppNotification[] {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
   return [
-    { id: uuid(), person: 'b', text: 'ukończyła Moduł 2: tabele przestawne', time: 'wczoraj, 19:14', responded: false },
-    { id: uuid(), person: 'b', text: 'zrobiła Kurs Excela 3 tygodnie z rzędu', time: '3 dni temu', responded: true, reply: 'Dumny/a z Ciebie' },
-    { id: uuid(), person: 'b', text: 'przesunęła zadanie na jutro', time: '5 dni temu', responded: false },
+    { id: uuid(), actorId: 'b', text: 'kończy etap „Moduł 2: tabele przestawne" w „Kurs Excela"', createdAt: hoursAgo(28), responded: false },
+    { id: uuid(), actorId: 'b', text: 'robi Kurs Excela 3 tygodnie z rzędu', createdAt: hoursAgo(76), responded: true, reply: 'Dumny/a z Ciebie' },
+    { id: uuid(), actorId: 'b', text: 'przesuwa zadanie na jutro', createdAt: hoursAgo(124), responded: false },
   ];
 }
 
