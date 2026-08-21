@@ -4,7 +4,7 @@
 import { addDays, parseShortDate, ymdKey, type Ymd } from './calendarUtils';
 import { milestonesFor } from './goals';
 import { TYPE_COLOR } from '../theme';
-import type { Goal, Person } from '../types';
+import type { Goal, Person, Task } from '../types';
 
 /**
  * Egzekwuje visibleToPartner (spec §7, "Luka do domknięcia: widoczność
@@ -15,6 +15,28 @@ import type { Goal, Person } from '../types';
  */
 export function visibleGoals(goals: Goal[], isOwn: boolean): Goal[] {
   return isOwn ? goals : goals.filter((g) => g.visibleToPartner);
+}
+
+/** Ten sam filtr co visibleGoals, dla "Szybkich zadań" (0006_tasks_partner_visibility.sql). RLS już to egzekwuje po stronie serwera — to druga, obronna warstwa po stronie klienta, jak przy celach. */
+export function visibleTasks(tasks: Task[], isOwn: boolean): Task[] {
+  return isOwn ? tasks : tasks.filter((t) => t.visibleToPartner);
+}
+
+export interface TaskEntry {
+  task: Task;
+  person: Person;
+  isOwn: boolean;
+}
+
+/** Zadania widocznych osób na dany dzień, z dopiętym właścicielem — do siatki i podglądu dnia w Kalendarzu, mirror dayEntriesFor. */
+export function taskEntriesFor(peopleWithTasks: { person: Person; tasks: Task[]; isOwn: boolean }[], dateKey: string): TaskEntry[] {
+  const entries: TaskEntry[] = [];
+  for (const { person, tasks, isOwn } of peopleWithTasks) {
+    for (const t of tasks) {
+      if (t.date === dateKey) entries.push({ task: t, person, isOwn });
+    }
+  }
+  return entries;
 }
 
 export type DayStatus = 'full' | 'partial' | 'none';

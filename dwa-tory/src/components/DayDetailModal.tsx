@@ -6,10 +6,11 @@
 // dzień dostaje skrót do Dziennika zamiast duplikowania tej logiki tutaj.
 
 import { Check, ChevronRight, ExternalLink, Trash2, X } from 'lucide-react';
+import { Avatar } from './Avatar';
 import { GoalDot } from './GoalDot';
 import { C, TYPE_COLOR } from '../theme';
-import type { DayEntry } from '../lib/kalendarz';
-import type { Goal, Task } from '../types';
+import type { DayEntry, TaskEntry } from '../lib/kalendarz';
+import type { Goal } from '../types';
 
 const STATUS_LABEL: Record<'done' | 'moved' | 'skipped', string> = {
   done: 'Zrobione',
@@ -35,9 +36,10 @@ export function DayDetailModal({
   dateLabel,
   isToday,
   entries,
-  tasks,
+  taskEntries,
   onEntryClick,
   onToggleTask,
+  onEditTask,
   onDeleteTask,
   onGoToDziennik,
   onClose,
@@ -45,10 +47,11 @@ export function DayDetailModal({
   dateLabel: string;
   isToday: boolean;
   entries: DayEntry[];
-  /** Własne "Szybkie zadania" na ten dzień — nie mają widoczności dla partnerki, więc zawsze tylko moje. */
-  tasks: Task[];
+  /** Własne i (jeśli udostępnione) partnerki "Szybkie zadania" na ten dzień. */
+  taskEntries: TaskEntry[];
   onEntryClick: (goal: Goal) => void;
   onToggleTask: (taskId: string) => void;
+  onEditTask: (task: TaskEntry['task']) => void;
   onDeleteTask: (taskId: string) => void;
   onGoToDziennik: () => void;
   onClose: () => void;
@@ -81,31 +84,54 @@ export function DayDetailModal({
             </button>
           )}
 
-          {tasks.length > 0 && (
+          {taskEntries.length > 0 && (
             <div className="flex flex-col gap-2">
-              {tasks.map((t) => (
-                <div key={t.id} className="w-full rounded-xl px-3 py-2.5 flex items-center gap-2.5" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
-                  <button
-                    onClick={() => onToggleTask(t.id)}
-                    aria-label={t.done ? 'Odznacz zadanie' : 'Zadanie zrobione'}
-                    className="rounded-full flex items-center justify-center shrink-0 cursor-pointer"
-                    style={{ width: 22, height: 22, border: `1.5px solid ${t.done ? C.gold : C.line}`, background: t.done ? C.gold : 'transparent' }}
-                  >
-                    {t.done && <Check size={12} style={{ color: '#15241F' }} />}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-body text-[12px] truncate" style={{ color: t.done ? C.muted : C.text, textDecoration: t.done ? 'line-through' : 'none' }}>{t.title}</div>
-                    {t.time && <div className="font-body text-[10px]" style={{ color: C.muted }}>{t.time}</div>}
-                  </div>
-                  <button onClick={() => onDeleteTask(t.id)} aria-label="Usuń zadanie" className="bg-transparent border-0 cursor-pointer shrink-0 flex items-center justify-center" style={{ color: C.muted, width: 28, height: 28 }}>
-                    <Trash2 size={13} />
-                  </button>
+              {taskEntries.map(({ task: t, isOwn, person }) => (
+                <div key={t.id} className="w-full rounded-xl px-3 py-2.5 flex items-center gap-2" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+                  {isOwn ? (
+                    <button
+                      onClick={() => onToggleTask(t.id)}
+                      aria-label={t.done ? 'Odznacz zadanie' : 'Zadanie zrobione'}
+                      className="rounded-full flex items-center justify-center shrink-0 cursor-pointer bg-transparent"
+                      style={{ width: 32, height: 32, margin: '-5px' }}
+                    >
+                      <span
+                        className="rounded-full flex items-center justify-center"
+                        style={{ width: 22, height: 22, border: `1.5px solid ${t.done ? C.gold : C.line}`, background: t.done ? C.gold : 'transparent' }}
+                      >
+                        {t.done && <Check size={12} style={{ color: '#15241F' }} />}
+                      </span>
+                    </button>
+                  ) : (
+                    <Avatar person={person} size={20} />
+                  )}
+                  {isOwn ? (
+                    <button
+                      onClick={() => onEditTask(t)}
+                      className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer"
+                      style={{ font: 'inherit' }}
+                      aria-label={`Edytuj zadanie: ${t.title}`}
+                    >
+                      <div className="font-body text-[12px] truncate" style={{ color: t.done ? C.muted : C.text, textDecoration: t.done ? 'line-through' : 'none' }}>{t.title}</div>
+                      {t.time && <div className="font-body text-[10px]" style={{ color: C.muted }}>{t.time}</div>}
+                    </button>
+                  ) : (
+                    <div className="flex-1 min-w-0">
+                      <div className="font-body text-[12px] truncate" style={{ color: t.done ? C.muted : C.text, textDecoration: t.done ? 'line-through' : 'none' }}>{t.title}</div>
+                      {t.time && <div className="font-body text-[10px]" style={{ color: C.muted }}>{t.time}</div>}
+                    </div>
+                  )}
+                  {isOwn && (
+                    <button onClick={() => onDeleteTask(t.id)} aria-label="Usuń zadanie" className="bg-transparent border-0 cursor-pointer shrink-0 flex items-center justify-center" style={{ color: C.muted, width: 32, height: 32, margin: '-5px' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           )}
 
-          {entries.length === 0 && tasks.length === 0 ? (
+          {entries.length === 0 && taskEntries.length === 0 ? (
             <div className="font-body text-[11px] text-center py-6" style={{ color: C.muted }}>
               Nic tu jeszcze nie ma.
             </div>

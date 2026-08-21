@@ -8,10 +8,8 @@
 -- tabela, nie wiersz w goals: zadanie nie ma kadencji ani śledzenia
 -- postępu (Goal wymaga obu), to jednorazowa rzecz na konkretny dzień.
 --
--- Brak visible_to_partner — formularz Kreatora go nie zbiera dla zadań
--- (świadoma decyzja: zadania są prywatne, tylko właściciel je widzi).
--- Jeśli to się kiedyś zmieni, trzeba dodać kolumnę + politykę selecta
--- analogiczną do goals_select_own_or_visible_partner.
+-- Brak visible_to_partner w tej migracji — formularz Kreatora go jeszcze nie
+-- zbierał dla zadań. Dodane później w 0006_tasks_partner_visibility.sql.
 
 create table public.tasks (
   id uuid primary key default gen_random_uuid(),

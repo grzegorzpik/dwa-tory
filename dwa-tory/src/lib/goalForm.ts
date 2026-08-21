@@ -2,7 +2,7 @@
 // Formularz ma dwie gałęzie: "szybkie zadanie" (skrócona ścieżka) i "cel do
 // śledzenia" (pełne drzewo decyzyjne z charakterem/kadencją/kamieniami).
 
-import { DAY_LABELS, formatShortDate, minimalVersionCap, monthAbbr, parseShortDate, sessionsPerMonth, today, ymdKey, type Ymd } from './calendarUtils';
+import { DAY_LABELS, formatShortDate, minimalVersionCap, monthAbbr, parseShortDate, parseYmdKey, sessionsPerMonth, today, ymdKey, type Ymd } from './calendarUtils';
 import { uuid } from './id';
 import { C, TYPE_COLOR } from '../theme';
 import type { Goal, GoalCharacter, Milestone, Task } from '../types';
@@ -158,14 +158,28 @@ export function canProceed(f: GoalFormState, step: number): boolean {
 }
 
 /** Buduje finalny obiekt Task z gotowego formularza (tylko gałąź "zadanie"). Bez wybranej daty w Kreatorze domyślnie dziś — "szybkie" zadanie ma się dziać od razu, nie wisieć bez terminu. */
-export function formStateToTask(f: GoalFormState, personId: string): Task {
+export function formStateToTask(f: GoalFormState, personId: string, existing?: Task): Task {
   return {
-    id: uuid(),
+    id: existing?.id ?? uuid(),
     personId,
     title: f.name.trim(),
     date: ymdKey(f.taskDay ?? today()),
     time: f.taskTime.trim() || undefined,
-    done: false,
+    done: existing?.done ?? false,
+    visibleToPartner: f.visibleToPartner,
+  };
+}
+
+/** Wejście do edycji istniejącego zadania — odpowiednik goalToFormState, tylko pola, które Kreator faktycznie zbiera dla gałęzi "zadanie". */
+export function taskToFormState(t: Task): GoalFormState {
+  const base = emptyFormState();
+  return {
+    ...base,
+    kind: 'task',
+    name: t.title,
+    taskDay: parseYmdKey(t.date),
+    taskTime: t.time ?? '',
+    visibleToPartner: t.visibleToPartner,
   };
 }
 

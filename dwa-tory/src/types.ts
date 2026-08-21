@@ -128,6 +128,8 @@ export interface Task {
   /** Wolny tekst jak Goal.cadenceTimeOfDay — Kreator nie ma <input type="time">. */
   time?: string;
   done: boolean;
+  /** Jak Goal.visibleToPartner — nawet jednorazowe zadanie można udostępnić (0006_tasks_partner_visibility.sql). */
+  visibleToPartner: boolean;
   /** ISO timestamp ostatniego zapisu — spójne z Goal.updatedAt. */
   updatedAt?: string;
 }

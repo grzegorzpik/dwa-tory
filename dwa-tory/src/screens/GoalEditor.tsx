@@ -23,6 +23,7 @@ import {
   isTask,
   minimalCapLabel,
   startLabel,
+  taskToFormState,
   totalSteps,
   trackColorFor,
   type GoalFormState,
@@ -31,13 +32,14 @@ import { DAY_LABELS, monthAbbr, today } from '../lib/calendarUtils';
 import { shareOrOpenIcsForGoal, shareOrOpenIcsForTask } from '../lib/ics';
 import { useAppData } from '../store/AppDataContext';
 import { C } from '../theme';
-import type { Goal } from '../types';
+import type { Goal, Task } from '../types';
 
-export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
-  const { currentUser, saveGoal, removeGoal, saveTask } = useAppData();
-  const isEditMode = !!goal;
+/** `goal` i `task` się wykluczają — który jest ustawiony wybiera gałąź edycji; brak obu = kreator pustego formularza. */
+export function GoalEditor({ goal, task, onClose }: { goal?: Goal; task?: Task; onClose: () => void }) {
+  const { currentUser, saveGoal, removeGoal, saveTask, removeTask } = useAppData();
+  const isEditMode = !!goal || !!task;
 
-  const [form, setForm] = useState<GoalFormState>(() => (goal ? goalToFormState(goal) : emptyFormState()));
+  const [form, setForm] = useState<GoalFormState>(() => (goal ? goalToFormState(goal) : task ? taskToFormState(task) : emptyFormState()));
   const [step, setStep] = useState(0);
   const [confirmExit, setConfirmExit] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -72,14 +74,17 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
   const submit = () => {
     if (isTask(form)) {
       // Osobny model od Goal — zadanie nie ma kadencji ani śledzenia
-      // postępu, obu wymaga Goal (spec §4). Zawsze też od razu próbuje
+      // postępu, obu wymaga Goal (spec §4). Nowe zadanie od razu próbuje
       // dodać się do kalendarza telefonu (krok 10) — bez przełącznika, jak
       // przy Celu, bo to był pierwotny sens "szybkiego zadania": jednorazowa
       // rzecz na konkretny dzień/godzinę. Wywołanie MUSI być synchroniczne
-      // (patrz lib/ics.ts) — nie awaitować niczego przed nim.
-      const task = formStateToTask(form, currentUser.id);
-      saveTask(task);
-      shareOrOpenIcsForTask(task);
+      // (patrz lib/ics.ts) — nie awaitować niczego przed nim. Przy EDYCJI już
+      // istniejącego zadania celowo NIE re-triggerujemy arkusza kalendarza —
+      // ten sam wzorzec co przy Celu (syncJustEnabled niżej): nikt nie chce
+      // dostawać ponownego "Dodaj do kalendarza" za każdą drobną poprawkę.
+      const savedTask = formStateToTask(form, currentUser.id, task);
+      saveTask(savedTask);
+      if (!task) shareOrOpenIcsForTask(savedTask);
       onClose();
       return;
     }
@@ -134,7 +139,7 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
           </div>
         </div>
         <h1 className="font-display text-2xl" style={{ color: C.text }}>
-          {isEditMode ? 'EDYTUJ' : 'NOWY'} <span style={{ color: C.gold }}>CEL</span>
+          {isEditMode ? 'EDYTUJ' : 'NOWY'} <span style={{ color: C.gold }}>{isTask(form) ? 'ZADANIE' : 'CEL'}</span>
         </h1>
       </div>
 
@@ -163,7 +168,10 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
                     value={form.name}
                     onChange={(e) => patch({ name: e.target.value })}
                     placeholder="np. Codzienna medytacja"
-                    autoFocus
+                    // Tylko przy nowym wpisie — przy edycji nazwa jest już wypełniona,
+                    // więc klawiatura nie ma po co wyskakiwać sama, zanim user
+                    // faktycznie dotknie pola (zgłoszenie UX).
+                    autoFocus={!isEditMode}
                     className="w-full font-body text-sm px-3 py-2.5 rounded-xl outline-none"
                     style={{ background: C.surface, color: C.text, border: `1px solid ${C.line}` }}
                   />
@@ -181,8 +189,12 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
                 <div>
                   <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Co dodajesz?</div>
                   <div className="flex flex-col gap-2">
-                    <OptionCard icon={Zap} title="Szybkie zadanie" desc="Jednorazowe, bez śledzenia w czasie" selected={form.kind === 'task'} onClick={() => patch({ kind: 'task' })} />
-                    <OptionCard icon={Target} title="Cel do śledzenia" desc="Będziesz do tego wracać — nawyk albo projekt" selected={form.kind === 'goal'} onClick={() => patch({ kind: 'goal' })} />
+                    {/* visibleToPartner startuje inaczej dla obu gałęzi przy TWORZENIU: cele domyślnie widoczne
+                        (istniejące zachowanie), zadania domyślnie prywatne (tak działały, zanim dostały tę opcję) —
+                        user i tak może to przełączyć w podsumowaniu. Tylko przy nowym wpisie: przy edycji pole jest
+                        już poprawnie ustawione z istniejącego celu/zadania i klik na już-wybraną kartę nie może go po cichu nadpisać. */}
+                    <OptionCard icon={Zap} title="Szybkie zadanie" desc="Jednorazowe, bez śledzenia w czasie" selected={form.kind === 'task'} onClick={() => patch({ kind: 'task', ...(isEditMode ? {} : { visibleToPartner: false }) })} />
+                    <OptionCard icon={Target} title="Cel do śledzenia" desc="Będziesz do tego wracać — nawyk albo projekt" selected={form.kind === 'goal'} onClick={() => patch({ kind: 'goal', ...(isEditMode ? {} : { visibleToPartner: true }) })} />
                   </div>
                 </div>
                 {form.kind === 'goal' && (
@@ -489,23 +501,25 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
                   {!isTask(form) && form.reason && <div className="font-body text-[10px] mt-1 italic" style={{ color: C.muted }}>„{form.reason}”</div>}
                 </div>
 
-                {!isTask(form) && (
-                  <div className="rounded-xl p-3 flex flex-col gap-2.5" style={{ background: C.surface2, border: `1px solid ${C.line}` }}>
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <span className="font-body text-[11px]" style={{ color: C.text }}>Widoczne dla partnerki</span>
-                      <ToggleSwitch checked={form.visibleToPartner} onChange={(v) => patch({ visibleToPartner: v })} color={trackColor} />
-                    </label>
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <span className="font-body text-[11px]" style={{ color: C.text }}>Sync z kalendarzem telefonu</span>
-                      <ToggleSwitch checked={form.syncToPhoneCalendar} onChange={(v) => patch({ syncToPhoneCalendar: v })} color={trackColor} />
-                    </label>
-                    {form.syncToPhoneCalendar && (
-                      <div className="font-body text-[9px]" style={{ color: C.muted }}>
-                        Po zapisaniu znajdziesz przycisk „Dodaj do Kalendarza” w podglądzie celu (Dziennik → dotknij nazwę celu).
-                      </div>
-                    )}
-                  </div>
-                )}
+                <div className="rounded-xl p-3 flex flex-col gap-2.5" style={{ background: C.surface2, border: `1px solid ${C.line}` }}>
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="font-body text-[11px]" style={{ color: C.text }}>Widoczne dla partnerki</span>
+                    <ToggleSwitch checked={form.visibleToPartner} onChange={(v) => patch({ visibleToPartner: v })} color={trackColor} />
+                  </label>
+                  {!isTask(form) && (
+                    <>
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span className="font-body text-[11px]" style={{ color: C.text }}>Sync z kalendarzem telefonu</span>
+                        <ToggleSwitch checked={form.syncToPhoneCalendar} onChange={(v) => patch({ syncToPhoneCalendar: v })} color={trackColor} />
+                      </label>
+                      {form.syncToPhoneCalendar && (
+                        <div className="font-body text-[9px]" style={{ color: C.muted }}>
+                          Po zapisaniu znajdziesz przycisk „Dodaj do Kalendarza” w podglądzie celu (Dziennik → dotknij nazwę celu).
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
 
                 {!isTask(form) && (
                   <div className="rounded-xl p-3" style={{ background: C.surface2, border: `1px solid ${C.line}` }}>
@@ -523,7 +537,15 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
           <div className="mb-2">
             {confirmDelete ? (
               <div className="flex gap-2">
-                <button onClick={() => { removeGoal(goal!.id); onClose(); }} className="flex-1 font-body text-[11px] py-2 rounded-lg border-0 cursor-pointer" style={{ background: C.over, color: '#15241F' }}>
+                <button
+                  onClick={() => {
+                    if (task) removeTask(task.id);
+                    else removeGoal(goal!.id);
+                    onClose();
+                  }}
+                  className="flex-1 font-body text-[11px] py-2 rounded-lg border-0 cursor-pointer"
+                  style={{ background: C.over, color: '#15241F' }}
+                >
                   Tak, usuń
                 </button>
                 <button onClick={() => setConfirmDelete(false)} className="flex-1 font-body text-[11px] py-2 rounded-lg bg-transparent cursor-pointer" style={{ border: `1px solid ${C.line}`, color: C.muted }}>
@@ -532,7 +554,7 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
               </div>
             ) : (
               <button onClick={() => setConfirmDelete(true)} className="w-full font-body text-[11px] py-1 bg-transparent border-0 cursor-pointer" style={{ color: C.over }}>
-                Usuń cel
+                {isTask(form) ? 'Usuń zadanie' : 'Usuń cel'}
               </button>
             )}
           </div>

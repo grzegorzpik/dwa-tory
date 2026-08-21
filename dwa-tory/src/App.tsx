@@ -14,7 +14,7 @@ import { Profil } from './screens/Profil';
 import { AppDataProvider, useAppData } from './store/AppDataContext';
 import { AuthProvider, useAuth } from './store/AuthContext';
 import { C, SHELL_BG } from './theme';
-import type { Goal } from './types';
+import type { Goal, Task } from './types';
 
 export type TabId = 'dziennik' | 'cele' | 'kalendarz' | 'profil';
 
@@ -35,6 +35,8 @@ function AppShell() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   // 'new' = kreator pustego formularza; Goal = edycja istniejącego celu (wejście: FAB albo karta celu — spec §5.5)
   const [goalEditor, setGoalEditor] = useState<'new' | Goal | null>(null);
+  // Osobny stan od goalEditor — edycja "Szybkiego zadania" (wejście: dotknięcie wiersza zadania w Dzienniku/Kalendarzu, na prośbę użytkownika).
+  const [taskEditor, setTaskEditor] = useState<Task | null>(null);
 
   const goToTab = (id: TabId) => {
     setNotificationsOpen(false);
@@ -56,6 +58,9 @@ function AppShell() {
   if (goalEditor !== null) {
     return <GoalEditor goal={goalEditor === 'new' ? undefined : goalEditor} onClose={() => setGoalEditor(null)} />;
   }
+  if (taskEditor !== null) {
+    return <GoalEditor task={taskEditor} onClose={() => setTaskEditor(null)} />;
+  }
 
   return (
     <>
@@ -69,9 +74,9 @@ function AppShell() {
 
       <div className="flex-1 overflow-y-auto px-4 pb-4 relative">
         <NotificationsPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
-        {tab === 'dziennik' && <Dziennik onEditGoal={(g) => setGoalEditor(g)} />}
+        {tab === 'dziennik' && <Dziennik onEditGoal={(g) => setGoalEditor(g)} onEditTask={(t) => setTaskEditor(t)} onNewGoal={() => setGoalEditor('new')} />}
         {tab === 'cele' && <Cele onNewGoal={() => setGoalEditor('new')} onEditGoal={(g) => setGoalEditor(g)} />}
-        {tab === 'kalendarz' && <Kalendarz onEditGoal={(g) => setGoalEditor(g)} onGoToDziennik={() => goToTab('dziennik')} />}
+        {tab === 'kalendarz' && <Kalendarz onEditGoal={(g) => setGoalEditor(g)} onEditTask={(t) => setTaskEditor(t)} onGoToDziennik={() => goToTab('dziennik')} />}
         {tab === 'profil' && <Profil onOpenTutorial={() => setTutorialOpen(true)} />}
       </div>
 

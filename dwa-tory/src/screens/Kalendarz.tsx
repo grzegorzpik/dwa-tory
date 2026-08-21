@@ -19,9 +19,12 @@ import {
   dayStatusFor,
   milestoneDateKey,
   mutualStreakDays,
+  taskEntriesFor,
   visibleGoals,
+  visibleTasks,
   type CalendarMilestone,
   type DayStatus,
+  type TaskEntry,
 } from '../lib/kalendarz';
 import { milestonesFor } from '../lib/goals';
 import { addDays, DAY_LABELS, formatShortDate, MONTH_NAMES, monthAbbr, parseYmdKey, startOfWeek, today, ymdKey, type Ymd } from '../lib/calendarUtils';
@@ -40,8 +43,16 @@ function colorForStatus(status: DayStatus, personColor: string): string {
 
 const WEEKDAY_NAMES = ['poniedziałek', 'wtorek', 'środę', 'czwartek', 'piątek', 'sobotę', 'niedzielę'];
 
-export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: Goal) => void; onGoToDziennik: () => void }) {
-  const { currentUser, partner, goals, partnerGoals, tasks, toggleTaskDone, removeTask, settings } = useAppData();
+export function Kalendarz({
+  onEditGoal,
+  onEditTask,
+  onGoToDziennik,
+}: {
+  onEditGoal: (goal: Goal) => void;
+  onEditTask: (task: Task) => void;
+  onGoToDziennik: () => void;
+}) {
+  const { currentUser, partner, goals, partnerGoals, tasks, partnerTasks, toggleTaskDone, removeTask, settings } = useAppData();
   const [view, setView] = useState<ViewMode>(partner ? settings.defaultCalendarView : 'mine');
   const [period, setPeriod] = useState<Period>(settings.defaultCalendarPeriod);
   const [anchor, setAnchor] = useState<Ymd>(today());
@@ -54,6 +65,8 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
   const todayKey = ymdKey(t);
   const myVisible = visibleGoals(goals, true);
   const partnerVisible = partner ? visibleGoals(partnerGoals, false) : [];
+  const myVisibleTasks = visibleTasks(tasks, true);
+  const partnerVisibleTasks = partner ? visibleTasks(partnerTasks, false) : [];
 
   const showMine = view === 'mine' || view === 'both';
   const showPartner = (view === 'partner' || view === 'both') && !!partner;
@@ -61,6 +74,10 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
   const peopleWithGoals: { person: Person; goals: Goal[]; isOwn: boolean }[] = [
     ...(showMine ? [{ person: currentUser, goals: myVisible, isOwn: true }] : []),
     ...(showPartner && partner ? [{ person: partner, goals: partnerVisible, isOwn: false }] : []),
+  ];
+  const peopleWithTasks: { person: Person; tasks: Task[]; isOwn: boolean }[] = [
+    ...(showMine ? [{ person: currentUser, tasks: myVisibleTasks, isOwn: true }] : []),
+    ...(showPartner && partner ? [{ person: partner, tasks: partnerVisibleTasks, isOwn: false }] : []),
   ];
 
   const milestones = calendarMilestonesFor(peopleWithGoals);
@@ -70,9 +87,10 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
   const doneShown = showAllDone ? doneList : doneList.slice(0, 5);
 
   const milestonesByDay = (dateKey: string) => milestones.filter((m) => milestoneDateKey(m, t.year) === dateKey);
-  // Zadania nie mają widoczności dla partnerki (spec §5.5) — zawsze tylko własne, bez rozróżnienia po `view`.
-  const tasksByDay = (dateKey: string) => tasks.filter((task) => task.date === dateKey);
-  const upcomingTasks = tasks.filter((task) => !task.done).sort((a, b) => a.date.localeCompare(b.date));
+  const tasksByDay = (dateKey: string) => taskEntriesFor(peopleWithTasks, dateKey);
+  const upcomingTasks: TaskEntry[] = peopleWithTasks
+    .flatMap(({ person, tasks: personTasks, isOwn }) => personTasks.filter((task) => !task.done).map((task) => ({ task, person, isOwn })))
+    .sort((a, b) => a.task.date.localeCompare(b.task.date));
 
   const selectedDayEntries = selectedDay ? dayEntriesFor(peopleWithGoals, selectedDay, t.year, selectedDay === todayKey) : [];
   const selectedDayTasks = selectedDay ? tasksByDay(selectedDay) : [];
@@ -85,12 +103,16 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
           dateLabel={selectedDayLabel}
           isToday={selectedDay === todayKey}
           entries={selectedDayEntries}
-          tasks={selectedDayTasks}
+          taskEntries={selectedDayTasks}
           onEntryClick={(goal) => {
             setSelectedDay(null);
             setSelectedGoal(goal);
           }}
           onToggleTask={toggleTaskDone}
+          onEditTask={(task) => {
+            setSelectedDay(null);
+            onEditTask(task);
+          }}
           onDeleteTask={removeTask}
           onGoToDziennik={onGoToDziennik}
           onClose={() => setSelectedDay(null)}
@@ -170,8 +192,8 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
           <EmptyRow text="Brak zaplanowanych zadań." />
         ) : (
           <div className="flex flex-col gap-2">
-            {upcomingTasks.map((task) => (
-              <TaskListRow key={task.id} task={task} onClick={() => setSelectedDay(task.date)} />
+            {upcomingTasks.map(({ task, person, isOwn }) => (
+              <TaskListRow key={task.id} task={task} person={person} showAvatar={view === 'both'} onClick={() => (isOwn ? onEditTask(task) : setSelectedDay(task.date))} />
             ))}
           </div>
         )}
@@ -281,12 +303,12 @@ function MilestoneRow({ m, showAvatar, person }: { m: CalendarMilestone; showAva
   );
 }
 
-/** Zadania nie mają partnerki, więc bez showAvatar/person — zawsze tylko własne. */
-function TaskListRow({ task, onClick }: { task: Task; onClick: () => void }) {
+function TaskListRow({ task, person, showAvatar, onClick }: { task: Task; person: Person; showAvatar: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} className="w-full rounded-xl px-3 py-2.5 flex items-center gap-3 cursor-pointer text-left border-0 bg-transparent" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
       <div className="w-12 shrink-0 font-display text-sm text-center" style={{ color: C.gold }}>{formatShortDate(parseYmdKey(task.date))}</div>
       <div style={{ width: 1, height: 24, background: C.line }} />
+      {showAvatar && <Avatar person={person} size={20} />}
       <div className="flex-1 min-w-0">
         <div className="font-body text-[12px] truncate" style={{ color: C.text }}>{task.title}</div>
         {task.time && <div className="font-body text-[10px] truncate" style={{ color: C.muted }}>{task.time}</div>}
@@ -305,8 +327,7 @@ interface PeriodViewProps {
   myVisible: ReturnType<typeof visibleGoals>;
   partnerVisible: ReturnType<typeof visibleGoals>;
   milestonesByDay: (dateKey: string) => CalendarMilestone[];
-  /** Zadania nie mają widoczności dla partnerki — pomijane, gdy view === 'partner'. */
-  tasksByDay: (dateKey: string) => Task[];
+  tasksByDay: (dateKey: string) => TaskEntry[];
   today: Ymd;
   onDayClick: (dateKey: string) => void;
 }
@@ -339,8 +360,8 @@ function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisibl
           const dateKey = ymdKey(d);
           const isToday = dateKey === ymdKey(t);
           const dayMilestones = milestonesByDay(dateKey);
-          const dayTasks = view === 'partner' ? [] : tasksByDay(dateKey);
-          const labels = [...dayMilestones.map((m) => m.label), ...dayTasks.map((task) => task.title)];
+          const dayTasks = tasksByDay(dateKey);
+          const labels = [...dayMilestones.map((m) => m.label), ...dayTasks.map(({ task }) => task.title)];
           return (
             <button
               key={dateKey}
@@ -375,7 +396,7 @@ function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisib
         renderDay={(d) => {
           const dateKey = ymdKey({ year: anchor.year, month: anchor.month, day: d });
           const isToday = dateKey === ymdKey(t);
-          const hasNotableEntry = milestonesByDay(dateKey).length > 0 || (view !== 'partner' && tasksByDay(dateKey).length > 0);
+          const hasNotableEntry = milestonesByDay(dateKey).length > 0 || tasksByDay(dateKey).length > 0;
           const bg =
             view === 'both' && partner
               ? `linear-gradient(to bottom, ${colorForStatus(dayStatusFor(myVisible, dateKey), currentUser.color)} 50%, ${colorForStatus(dayStatusFor(partnerVisible, dateKey), partner.color)} 50%)`

@@ -1,8 +1,9 @@
-// Sync "Szybkich zadań" z Supabase. Prostszy wzorzec niż goalsSync: zadania
-// nie mają partnerki (nie ma dla nich RLS-owej widoczności współdzielonej)
-// ani złożonej historii — jak notifications, sam pull na starcie + upsert
-// przy zapisie, bez subskrypcji Realtime (własne dane, nie ma na kogo
-// czekać — patrz uwaga w komentarzu przy tabeli w migracji 0005).
+// Sync "Szybkich zadań" z Supabase. Wzorzec bliski goalsSync: pullTasksForOwner
+// służy zarówno do ściągania WŁASNYCH zadań jak i zadań PARTNERA (Kalendarz) —
+// RLS z 0006_tasks_partner_visibility.sql filtruje drugie automatycznie do
+// visible_to_partner=true. Bez złożonej historii/kamieni, więc bez osobnych
+// tabel jak przy celach — sam pull + upsert, plus Realtime dla widoku
+// partnerki (patrz AppDataContext, ten sam wzorzec co partnerGoals).
 
 import { supabase } from './supabaseClient';
 import type { Task } from '../types';
@@ -14,6 +15,7 @@ interface TaskRow {
   date: string;
   time: string | null;
   done: boolean;
+  visible_to_partner: boolean;
   updated_at: string;
 }
 
@@ -25,6 +27,7 @@ function rowToTask(row: TaskRow): Task {
     date: row.date,
     time: row.time ?? undefined,
     done: row.done,
+    visibleToPartner: row.visible_to_partner,
     updatedAt: row.updated_at,
   };
 }
@@ -43,6 +46,7 @@ export async function pushTask(task: Task, ownerId: string): Promise<void> {
     date: task.date,
     time: task.time ?? null,
     done: task.done,
+    visible_to_partner: task.visibleToPartner,
     updated_at: task.updatedAt ?? new Date().toISOString(),
   });
   if (error) throw new Error(error.message);

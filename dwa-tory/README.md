@@ -108,17 +108,54 @@ zapisywał zadania jako `Goal` (brak kadencji/kamieni do liczenia — nie
 pasuje do modelu celu), z zamiarem podpięcia eksportu do kalendarza —
 ale nigdy nie wróciliśmy do tego przy budowie kroku 10, więc zadanie po
 prostu znikało po zapisaniu. Naprawione dodaniem osobnego, równoległego
-modelu `Task` (`src/lib/tasksSync.ts`, tabela `tasks`,
-`0005_tasks.sql`) — bez `visibleToPartner` (zawsze tylko własne, spec
-§5.5 nie przewiduje współdzielenia zadań), zapisywane lokalnie
-(`db.ts`) i do Supabase jak cele, ale bez subskrypcji Realtime (ten sam
-wzorzec co przy celach własnych — tylko odczyt przy starcie, bez efektu
-na żywo, bo dane inne osoby nigdy ich nie dotyczą). Zadanie jest teraz
-widoczne w trzech miejscach: (1) natychmiast po zapisaniu generuje i
-otwiera zdarzenie .ics jak cel z włączonym sync kalendarza; (2) sekcja
-"Zadania na dziś" w Dzienniku (tylko gdy są zadania na dziś); (3)
-Kalendarz — znacznik dnia, sekcja "Zadania" i lista w podglądzie dnia
-(`DayDetailModal`), z odhaczaniem/usuwaniem w miejscu.
+modelu `Task` (`src/lib/tasksSync.ts`, tabela `tasks`, `0005_tasks.sql`),
+zapisywanego lokalnie (`db.ts`) i do Supabase jak cele. Zadanie jest
+widoczne w trzech miejscach: (1) natychmiast po zapisaniu (tylko przy
+TWORZENIU, nie przy każdej edycji) generuje i otwiera zdarzenie .ics jak
+cel z włączonym sync kalendarza; (2) sekcja "Zadania na dziś" w Dzienniku
+(tylko gdy są zadania na dziś); (3) Kalendarz — znacznik dnia, sekcja
+"Zadania" i lista w podglądzie dnia (`DayDetailModal`), z
+odhaczaniem/edycją/usuwaniem w miejscu. Dotknięcie wiersza zadania (nie
+mała ikonka — cały wiersz to przycisk, zgłoszenie UX niżej) otwiera ten
+sam `GoalEditor` co przy celu, tylko z drugim propem (`task` zamiast
+`goal`) — `taskToFormState`/`formStateToTask` (`goalForm.ts`) budują i
+odczytują `GoalFormState` tak samo jak przy celu, id zadania zachowane
+przy edycji (bez tego każdy zapis tworzyłby duplikat zamiast nadpisywać).
+
+**Uwaga architektoniczna (widoczność zadania dla partnerki):**
+`0006_tasks_partner_visibility.sql` dodaje `visible_to_partner` do
+`tasks` (domyślnie `false` w bazie — kolumna dla wierszy bez jawnej
+wartości) i podmienia politykę selecta na dokładny odpowiednik
+`goals_select_own_or_visible_partner`. Kreator ma teraz przełącznik
+"Widoczne dla partnerki" w podsumowaniu dla OBU gałęzi (wcześniej tylko
+dla celu) — zgłoszenie użytkownika: opcja udostępnienia powinna być przy
+każdym rodzaju zadania, nawet jednorazowym. Nowe zadanie startuje z tym
+przełącznikiem wyłączonym (tak działały zadania, zanim dostały tę
+opcję), nowy cel — włączonym (istniejące zachowanie); w obu wypadkach
+user może to zmienić przed zapisem. `partnerTasks` w `AppDataContext` to
+dokładny mirror `partnerGoals` — pull + kanał Realtime na `tasks`
+filtrowany po `owner_id` partnerki. Kalendarz łączy własne i partnerki
+zadania przez `peopleWithTasks`/`taskEntriesFor` (`lib/kalendarz.ts`,
+mirror `peopleWithGoals`/`dayEntriesFor`) — cudze zadanie w podglądzie
+dnia renderuje się z avatarem, bez checkboxa/edycji/usuwania (RLS i tak
+by to odrzucił, UI nie pokazuje akcji, których wykonać się nie da).
+Dziennik pokazuje wyłącznie własne zadania (jak przy celach — to
+osobisty dziennik, współdzielenie dotyczy tylko Kalendarza).
+
+**Zgłoszenia UX (ta runda):**
+- Dziennik nie miał żadnego wejścia do dodania celu/zadania poza
+  zakładką "Cele" — dodany przycisk "Nowy cel / zadanie" pod listą
+  torów, ten sam styl co w Cele.
+- Edycja istniejącego celu domyślnie ustawiała fokus (i wysuwała
+  klawiaturę) na polu nazwy, mimo że jest już wypełnione — `autoFocus`
+  na tym polu teraz warunkowy (`!isEditMode`), włącza się tylko przy
+  tworzeniu nowego wpisu.
+- Ikony akcji przy zadaniach (odznacz/usuń) miały czysty rozmiar
+  przycisku 22–28px bez dodatkowego marginesu na dotyk — zbyt małe jak
+  na cel dotykowy. Podniesione do 32×32 (ujemny margines trzyma wygląd
+  wizualny bez zmiany layoutu, ta sama sztuczka co przy przycisku
+  zamykania w `GoalDetailModal`), a "przejście do edycji" przestało być
+  osobną ikoną — cały wiersz zadania to teraz duży, oczywisty przycisk.
 
 ## Uruchomienie
 
@@ -132,8 +169,8 @@ backendu).
 2. Odpal po kolei migracje z `supabase/migrations/` (SQL Editor w panelu
    Supabase, albo `supabase db push` z lokalnie zainstalowanym Supabase
    CLI) — `0001_init_schema.sql` → `0002_rls_policies.sql` →
-   `0003_pairing.sql` → `0004_realtime.sql` → `0005_tasks.sql`, w tej
-   kolejności.
+   `0003_pairing.sql` → `0004_realtime.sql` → `0005_tasks.sql` →
+   `0006_tasks_partner_visibility.sql`, w tej kolejności.
 3. Skopiuj `.env.local.example` do `.env.local` i wklej `Project URL` oraz
    `anon public` key ze Settings → API swojego projektu Supabase.
 
@@ -167,7 +204,7 @@ danych daje RLS w bazie (`0002_rls_policies.sql`), nie ukrycie klucza.
 - `src/lib/supabaseClient.ts` — jedyne miejsce importujące `@supabase/supabase-js`
 - `src/lib/pairing.ts` — generowanie/wymiana kodu parowania kont
 - `src/lib/goalsSync.ts` — sync celów z Supabase (local-first + Realtime)
-- `src/lib/tasksSync.ts` — sync "Szybkich zadań" z Supabase (local-first, bez Realtime — własne dane, jak cele)
+- `src/lib/tasksSync.ts` — sync "Szybkich zadań" z Supabase (local-first + Realtime dla widoku partnerki, jak cele)
 - `src/store/AuthContext.tsx` — sesja Supabase Auth (magic link/hasło)
 - `supabase/migrations/` — schemat bazy + RLS + parowanie + Realtime, w kolejności aplikowania
 - `src/store/AppDataContext.tsx` — stan aplikacji + mutacje z zapisem lokalnym

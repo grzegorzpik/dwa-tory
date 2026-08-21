@@ -3,7 +3,7 @@
 // przesuwania z konfliktem, kamienie milowe, "Czas dla siebie" opcjonalnie.
 
 import { useState } from 'react';
-import { Check, CalendarClock, ChevronDown, ChevronRight, Info, X, Flame, Sparkles, Heart, Trash2, Undo2 } from 'lucide-react';
+import { Check, CalendarClock, ChevronDown, ChevronRight, Info, Plus, X, Flame, Sparkles, Heart, Trash2, Undo2 } from 'lucide-react';
 import { Avatar } from '../components/Avatar';
 import { DayChip } from '../components/DayChip';
 import { GoalDetailModal } from '../components/GoalDetailModal';
@@ -15,9 +15,18 @@ import { ymdKey, today } from '../lib/calendarUtils';
 import { weekProgressFor } from '../lib/goals';
 import { useAppData } from '../store/AppDataContext';
 import { C, TYPE_COLOR } from '../theme';
-import type { Goal } from '../types';
+import type { Goal, Task } from '../types';
 
-export function Dziennik({ onEditGoal }: { onEditGoal: (goal: Goal) => void }) {
+export function Dziennik({
+  onEditGoal,
+  onEditTask,
+  onNewGoal,
+}: {
+  onEditGoal: (goal: Goal) => void;
+  onEditTask: (task: Task) => void;
+  /** Kreator (nowy cel ALBO szybkie zadanie) — dotąd dostępny tylko z zakładki "Cele" (zgłoszenie UX: brak dostępu z Dziennika). */
+  onNewGoal: () => void;
+}) {
   const {
     currentUser,
     goals,
@@ -106,7 +115,7 @@ export function Dziennik({ onEditGoal }: { onEditGoal: (goal: Goal) => void }) {
 
         {goals.length === 0 ? (
           <div className="font-body text-xs text-center py-6" style={{ color: C.muted }}>
-            Brak celów. Dodaj pierwszy w zakładce „Cele”.
+            Brak celów. Dodaj pierwszy poniżej.
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -173,36 +182,59 @@ export function Dziennik({ onEditGoal }: { onEditGoal: (goal: Goal) => void }) {
       </div>
 
       {todayTasks.length > 0 && (
-        <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+        <div className="rounded-2xl p-3 mb-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
           <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Zadania na dziś</div>
           <div className="flex flex-col gap-1.5">
             {todayTasks.map((t) => (
-              <TaskRow key={t.id} title={t.title} time={t.time} done={t.done} onToggle={() => toggleTaskDone(t.id)} onDelete={() => removeTask(t.id)} />
+              <TaskRow key={t.id} title={t.title} time={t.time} done={t.done} onToggle={() => toggleTaskDone(t.id)} onEdit={() => onEditTask(t)} onDelete={() => removeTask(t.id)} />
             ))}
           </div>
         </div>
       )}
+
+      <button
+        onClick={onNewGoal}
+        className="w-full font-body text-[11px] py-2 rounded-lg flex items-center justify-center gap-1 bg-transparent cursor-pointer"
+        style={{ border: `1px dashed ${C.line}`, color: C.muted, minHeight: 44 }}
+      >
+        <Plus size={13} /> Nowy cel / zadanie
+      </button>
     </div>
   );
 }
 
-function TaskRow({ title, time, done, onToggle, onDelete }: { title: string; time?: string; done: boolean; onToggle: () => void; onDelete: () => void }) {
+/**
+ * Cały wiersz poza checkboxem/usuwaniem to przycisk "edytuj" — nie mała
+ * ikonka (zgłoszenie UX: ikony przejścia do edycji były za małe). Checkbox
+ * i usuwanie są osobnymi przyciskami obok, nie zagnieżdżonymi w nim.
+ */
+function TaskRow({ title, time, done, onToggle, onEdit, onDelete }: { title: string; time?: string; done: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2">
       <button
         onClick={onToggle}
         aria-label={done ? 'Odznacz zadanie' : 'Zadanie zrobione'}
-        className="rounded-full flex items-center justify-center shrink-0 cursor-pointer"
-        style={{ width: 22, height: 22, border: `1.5px solid ${done ? C.gold : C.line}`, background: done ? C.gold : 'transparent' }}
+        className="rounded-full flex items-center justify-center shrink-0 cursor-pointer bg-transparent"
+        style={{ width: 32, height: 32, margin: '-5px' }}
       >
-        {done && <Check size={12} style={{ color: '#15241F' }} />}
+        <span
+          className="rounded-full flex items-center justify-center"
+          style={{ width: 22, height: 22, border: `1.5px solid ${done ? C.gold : C.line}`, background: done ? C.gold : 'transparent' }}
+        >
+          {done && <Check size={12} style={{ color: '#15241F' }} />}
+        </span>
       </button>
-      <div className="flex-1 min-w-0">
+      <button
+        onClick={onEdit}
+        className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer"
+        style={{ font: 'inherit' }}
+        aria-label={`Edytuj zadanie: ${title}`}
+      >
         <div className="font-body text-[12px] truncate" style={{ color: done ? C.muted : C.text, textDecoration: done ? 'line-through' : 'none' }}>{title}</div>
         {time && <div className="font-body text-[10px]" style={{ color: C.muted }}>{time}</div>}
-      </div>
-      <button onClick={onDelete} aria-label="Usuń zadanie" className="bg-transparent border-0 cursor-pointer shrink-0 flex items-center justify-center" style={{ color: C.muted, width: 28, height: 28 }}>
-        <Trash2 size={13} />
+      </button>
+      <button onClick={onDelete} aria-label="Usuń zadanie" className="bg-transparent border-0 cursor-pointer shrink-0 flex items-center justify-center" style={{ color: C.muted, width: 32, height: 32, margin: '-5px' }}>
+        <Trash2 size={14} />
       </button>
     </div>
   );

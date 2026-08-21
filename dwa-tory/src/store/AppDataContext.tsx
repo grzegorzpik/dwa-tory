@@ -47,8 +47,10 @@ interface AppDataValue {
   goals: Goal[]; // cele bieżącego użytkownika
   /** Cele partnerki (z Supabase, RLS egzekwuje visibleToPartner), do odczytu w Kalendarzu. Aktualizuje się przez Realtime. */
   partnerGoals: Goal[];
-  /** "Szybkie zadania" (spec §5.5) — jednorazowe, bez śledzenia, tylko własne (brak widoczności dla partnerki). */
+  /** "Szybkie zadania" (spec §5.5) — jednorazowe, bez śledzenia. */
   tasks: Task[];
+  /** Zadania partnerki (z Supabase, RLS egzekwuje visibleToPartner), do odczytu w Kalendarzu. Aktualizuje się przez Realtime. */
+  partnerTasks: Task[];
   saveTask: (task: Task) => void;
   toggleTaskDone: (taskId: string) => void;
   removeTask: (taskId: string) => void;
@@ -177,6 +179,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   const [partner, setPartner] = useState<Person | null>(null);
   const [pairId, setPairId] = useState<string | null>(null);
   const [partnerGoals, setPartnerGoals] = useState<Goal[]>([]);
+  const [partnerTasks, setPartnerTasks] = useState<Task[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [justCompleted, setJustCompleted] = useState(false);
@@ -304,6 +307,32 @@ export function AppDataProvider({ userId, children }: { userId: string; children
       void supabase.removeChannel(channel);
     };
   }, [partnerId, refreshPartnerGoals]);
+
+  const refreshPartnerTasks = useCallback(async (id: string) => {
+    try {
+      setPartnerTasks(await pullTasksForOwner(id));
+    } catch (e) {
+      console.error('Nie udało się pobrać zadań partnerki', e);
+    }
+  }, []);
+
+  // Ten sam wzorzec co partnerGoals: pull + Realtime, RLS z 0006 filtruje do visible_to_partner=true.
+  useEffect(() => {
+    if (!partnerId) {
+      setPartnerTasks([]);
+      return;
+    }
+    void refreshPartnerTasks(partnerId);
+
+    const channel = supabase
+      .channel(`partner-tasks-${partnerId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `owner_id=eq.${partnerId}` }, () => void refreshPartnerTasks(partnerId))
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [partnerId, refreshPartnerTasks]);
 
   const refreshNotifications = useCallback(
     async (id: string) => {
@@ -569,6 +598,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     goals,
     partnerGoals,
     tasks,
+    partnerTasks,
     saveTask,
     toggleTaskDone,
     removeTask,
