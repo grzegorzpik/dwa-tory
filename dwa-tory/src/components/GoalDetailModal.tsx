@@ -4,13 +4,14 @@
 // rozszerzenie na prośbę użytkownika: szybki podgląd bez wchodzenia w
 // wieloetapowy kreator tylko po to, żeby zobaczyć postęp.
 
-import type { ReactNode } from 'react';
-import { CalendarPlus, Pencil, Users, CalendarSync, X } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { CalendarPlus, Pencil, Trash2, Users, CalendarSync, X } from 'lucide-react';
 import { DayChip } from './DayChip';
 import { GoalDot } from './GoalDot';
 import { MiniTrack } from './MiniTrack';
 import { milestonesFor, weekProgressFor } from '../lib/goals';
-import { icsDataUri } from '../lib/ics';
+import { shareOrOpenIcsForGoal } from '../lib/ics';
+import { useAppData } from '../store/AppDataContext';
 import { C, TYPE_COLOR } from '../theme';
 import type { Goal } from '../types';
 
@@ -21,11 +22,13 @@ const CHARACTER_LABEL: Record<Goal['character'], string> = {
 };
 
 export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose: () => void; onEdit?: () => void }) {
+  const { removeGoal } = useAppData();
   const trackColor = TYPE_COLOR[goal.type];
   const milestones = milestonesFor(goal);
   const doneCount = milestones.filter((m) => m.done).length;
   const upcoming = milestones.filter((m) => !m.done).slice(0, 4);
   const [labelCurr, labelNext] = goal.cadenceSlots;
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div className="absolute inset-0 flex items-center justify-center p-4" style={{ background: 'rgba(11,21,18,0.72)', backdropFilter: 'blur(4px)', zIndex: 40 }} onClick={onClose}>
@@ -117,13 +120,13 @@ export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose
               />
             </div>
             {goal.syncToPhoneCalendar && (
-              <a
-                href={icsDataUri(goal)}
-                className="mt-2 w-full font-body text-[11px] py-2.5 rounded-xl flex items-center justify-center gap-1.5"
-                style={{ border: `1px solid ${trackColor}`, color: trackColor, minHeight: 44, textDecoration: 'none' }}
+              <button
+                onClick={() => void shareOrOpenIcsForGoal(goal)}
+                className="mt-2 w-full font-body text-[11px] py-2.5 rounded-xl flex items-center justify-center gap-1.5 bg-transparent cursor-pointer"
+                style={{ border: `1px solid ${trackColor}`, color: trackColor, minHeight: 44 }}
               >
                 <CalendarPlus size={13} /> Dodaj do Kalendarza (iPhone)
-              </a>
+              </button>
             )}
           </div>
 
@@ -139,6 +142,32 @@ export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose
             >
               <Pencil size={14} /> Edytuj cel
             </button>
+            {confirmDelete ? (
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => { removeGoal(goal.id); onClose(); }}
+                  className="flex-1 font-body text-[11px] py-2 rounded-lg border-0 cursor-pointer"
+                  style={{ background: C.over, color: '#15241F' }}
+                >
+                  Tak, usuń
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="flex-1 font-body text-[11px] py-2 rounded-lg bg-transparent cursor-pointer"
+                  style={{ border: `1px solid ${C.line}`, color: C.muted }}
+                >
+                  Anuluj
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="w-full font-body text-[11px] py-2 mt-1 bg-transparent border-0 cursor-pointer flex items-center justify-center gap-1"
+                style={{ color: C.over, minHeight: 44 }}
+              >
+                <Trash2 size={12} /> Usuń cel
+              </button>
+            )}
           </div>
         )}
       </div>

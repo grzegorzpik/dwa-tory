@@ -61,16 +61,26 @@ zachowania jako dane do lokalnego developmentu bez Supabase.
 wyłącznie w iPhone'a (decyzja użytkownika), więc krok 10 nie próbuje być
 uniwersalny. Przeglądarka nie ma API do zapisu wprost w natywnym kalendarzu
 — to świadome ograniczenie bezpieczeństwa, którego żadna appka webowa nie
-omija. Realny, działający sposób na iOS: cel z włączonym „Sync z
-kalendarzem telefonu” (przełącznik w Kreatorze) dostaje przycisk „Dodaj do
-Kalendarza” w swoim podglądzie (Dziennik → dotknij nazwę celu) —
-`src/lib/ics.ts` generuje zdarzenie iCalendar (RFC 5545) z regułą
+omija. `src/lib/ics.ts` generuje zdarzenie iCalendar (RFC 5545) z regułą
 powtarzania dopasowaną do kadencji celu (codziennie/konkretne dni
 tygodnia/co miesiąc; „X razy w tygodniu” nie wskazuje konkretnych dni, więc
-dostaje cotygodniowe przypomnienie z zastrzeżeniem w opisie) i podaje je
-jako link `data:text/calendar` BEZ atrybutu `download` — to sprawia, że
-Safari na iOS otwiera natywny ekran „Dodaj do kalendarza” wprost w
-przeglądarce, zamiast zwyczajnie pobierać plik. Zdarzenie startuje od
+dostaje cotygodniowe przypomnienie z zastrzeżeniem w opisie).
+
+Pierwsza wersja podawała to jako link `data:text/calendar` bez atrybutu
+`download` — działa jako "otwórz ekran Dodaj do kalendarza" w zwykłej
+karcie Safari, ale appka dodana do ekranu głównego (standalone PWA, czyli
+docelowy sposób jej używania) renderuje się we własnym, bardziej
+ograniczonym WebView, gdzie ta sama nawigacja nic nie robi ("przycisk nie
+działa" — zgłoszone i naprawione). `shareOrOpenIcsForGoal()` używa teraz
+Web Share API z plikami (obsługiwane w standalone PWA od iOS 15) jako
+głównej ścieżki — otwiera natywny arkusz udostępniania z opcją "Dodaj do
+kalendarza"; `data:` URI zostaje jako fallback dla starszego iOS. Cel z
+włączonym „Sync z kalendarzem telefonu” (przełącznik w Kreatorze) od razu
+po zapisaniu (przy tworzeniu ALBO przy edycji, jeśli sync właśnie się
+włączył — nie przy każdym kolejnym zapisie) otwiera ten arkusz automatycznie,
+bez konieczności ponownego wchodzenia w podgląd celu; przycisk „Dodaj do
+Kalendarza” w podglądzie celu (Dziennik → dotknij nazwę celu) zostaje jako
+sposób na powtórzenie tego później. Zdarzenie startuje od
 dzisiaj (albo najbliższego pasującego dnia dla kadencji z konkretnymi
 dniami), nie od historycznej daty startu celu — apka nie przechowuje
 prawdziwej daty startu jako danych maszynowych, tylko etykietę do
