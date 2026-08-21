@@ -26,6 +26,7 @@ import { buildExportPayload, downloadJson } from '../lib/exportData';
 import { milestonesFor } from '../lib/goals';
 import { cropImageToDataUrl } from '../lib/photo';
 import { CODE_TTL_MINUTES, createInviteCode, redeemInviteCode } from '../lib/pairing';
+import { supabase } from '../lib/supabaseClient';
 import { useAppData } from '../store/AppDataContext';
 import { useAuth } from '../store/AuthContext';
 import { C } from '../theme';
@@ -47,6 +48,23 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
   const [redeeming, setRedeeming] = useState(false);
   const [pairError, setPairError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  const setPassword = async () => {
+    if (newPassword.length < 6) return;
+    setSettingPassword(true);
+    setPasswordMessage(null);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setPasswordMessage({ text: error.message, isError: true });
+    } else {
+      setPasswordMessage({ text: 'Hasło ustawione — od teraz możesz się nim zalogować.', isError: false });
+      setNewPassword('');
+    }
+    setSettingPassword(false);
+  };
 
   const generateCode = async () => {
     setGeneratingCode(true);
@@ -264,6 +282,35 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
             {pairError && (
               <div className="font-body text-[10px] mt-2" style={{ color: C.over }}>{pairError}</div>
             )}
+
+            <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+              <div className="font-body text-[10px] mb-2" style={{ color: C.muted }}>
+                Ustaw hasło (żeby zalogować się bez maila — przydaje się, gdy appka jest dodana do ekranu głównego)
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="nowe hasło (min. 6 znaków)"
+                  className="flex-1 font-body text-[11px] px-2.5 py-2 rounded-lg outline-none"
+                  style={{ background: C.surface2, color: C.text, border: `1px solid ${C.line}` }}
+                />
+                <button
+                  onClick={setPassword}
+                  disabled={newPassword.length < 6 || settingPassword}
+                  className="font-body text-[11px] px-3 rounded-lg border-0 cursor-pointer"
+                  style={{ background: C.gold, color: '#15241F', opacity: newPassword.length < 6 || settingPassword ? 0.6 : 1, minHeight: 44 }}
+                >
+                  {settingPassword ? '…' : 'Ustaw'}
+                </button>
+              </div>
+              {passwordMessage && (
+                <div className="font-body text-[10px] mt-1.5" style={{ color: passwordMessage.isError ? C.over : C.ok }}>
+                  {passwordMessage.text}
+                </div>
+              )}
+            </div>
 
             <button
               onClick={signOut}
