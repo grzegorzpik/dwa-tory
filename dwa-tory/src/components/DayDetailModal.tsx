@@ -76,7 +76,7 @@ export function DayDetailModal({
 
           {entries.length === 0 ? (
             <div className="font-body text-[11px] text-center py-6" style={{ color: C.muted }}>
-              Brak danych z tego dnia.
+              Nic tu jeszcze nie ma.
             </div>
           ) : (
             <div className="flex flex-col gap-2">

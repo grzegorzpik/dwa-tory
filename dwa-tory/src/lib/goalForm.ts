@@ -107,7 +107,7 @@ export function cadenceLabel(f: GoalFormState): string {
 }
 
 export function minimalCapLabel(f: GoalFormState): string {
-  if (f.cadenceType === 'monthly') return 'Przy tej częstotliwości limit nie ma dużego znaczenia.';
+  if (f.cadenceType === 'monthly') return 'Przy takiej częstotliwości ten limit i tak nie robi różnicy.';
   const sessions = sessionsPerMonth(f.cadenceType, f.weekdays.length, f.perWeekCount);
   return `Maksymalnie ${minimalVersionCap(sessions)}× w miesiącu (25% dni).`;
 }

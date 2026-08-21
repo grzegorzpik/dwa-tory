@@ -124,14 +124,14 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
         {confirmExit ? (
           <div className="rise rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
             <div className="font-body text-xs mb-3" style={{ color: C.text }}>
-              Porzucić wypełniony formularz? Nic się nie zapisze.
+              Porzucić to, co wpisałeś? Nic się nie zapisze.
             </div>
             <div className="flex gap-2">
               <button onClick={onClose} className="flex-1 font-body text-[11px] py-2 rounded-lg border-0 cursor-pointer" style={{ background: C.over, color: '#15241F' }}>
                 Tak, porzuć
               </button>
               <button onClick={() => setConfirmExit(false)} className="flex-1 font-body text-[11px] py-2 rounded-lg bg-transparent cursor-pointer" style={{ border: `1px solid ${C.line}`, color: C.muted }}>
-                Wróć do formularza
+                Wróć i dokończ
               </button>
             </div>
           </div>

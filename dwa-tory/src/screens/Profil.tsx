@@ -285,7 +285,7 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
 
             <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
               <div className="font-body text-[10px] mb-2" style={{ color: C.muted }}>
-                Ustaw hasło (żeby zalogować się bez maila — przydaje się, gdy appka jest dodana do ekranu głównego)
+                Ustaw hasło — zalogujesz się bez maila, przydatne gdy appka jest na ekranie głównym.
               </div>
               <div className="flex gap-2">
                 <input
@@ -383,7 +383,7 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
           <SettingsRow icon={Info} title="O aplikacji" expanded={expanded.has('about')} onToggle={() => toggleRow('about')}>
             <div className="font-body text-[11px]" style={{ color: C.text }}>Dwa Tory</div>
             <div className="font-body text-[10px] mt-1" style={{ color: C.muted }}>
-              Aplikacja do świadomego gospodarowania czasem i realizacji celów dla dwóch osób.
+              Appka do ogarniania czasu i trzymania się celów — we dwoje.
             </div>
           </SettingsRow>
 

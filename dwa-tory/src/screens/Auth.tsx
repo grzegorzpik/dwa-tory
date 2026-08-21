@@ -105,7 +105,7 @@ export function Auth() {
           <Mail size={18} style={{ color: C.gold }} className="mb-2 mx-auto" />
           Wysłaliśmy link logowania na <strong>{email.trim()}</strong>. Otwórz go na tym urządzeniu, żeby wejść do aplikacji.
           <div className="font-body text-[10px] mt-2" style={{ color: C.muted }}>
-            Uwaga: jeśli appka jest dodana do ekranu głównego, otwórz link w zwykłej przeglądarce i zaloguj się tam hasłem zamiast — link z maila nie dotrze do ikony na ekranie głównym.
+            Uwaga: jeśli appka jest dodana do ekranu głównego, otwórz link w zwykłej przeglądarce i zaloguj się tam hasłem — link z maila i tak nie dotrze do ikony na ekranie głównym.
           </div>
           <button
             onClick={() => setStatus('idle')}

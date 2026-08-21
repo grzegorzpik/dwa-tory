@@ -73,7 +73,7 @@ export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose
           </div>
 
           <div>
-            <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Perspektywa najbliższych zadań</div>
+            <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Co dalej</div>
             {goal.cadenceType === 'perWeekCount' ? (
               (() => {
                 const { count, target } = weekProgressFor(goal);

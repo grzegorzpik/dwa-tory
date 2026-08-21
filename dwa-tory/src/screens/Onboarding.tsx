@@ -206,7 +206,7 @@ export function Onboarding() {
                 <Avatar person={partner} size={40} />
                 <div>
                   <div className="font-body text-xs" style={{ color: C.text }}>Połączono z {partner.name}</div>
-                  <div className="font-body text-[10px]" style={{ color: C.muted }}>Widzicie nawzajem swoje tory (w zakresie, na który pozwolicie).</div>
+                  <div className="font-body text-[10px]" style={{ color: C.muted }}>Widzicie nawzajem swoje tory — tyle, na ile pozwolicie.</div>
                 </div>
               </div>
             ) : (
@@ -283,7 +283,7 @@ export function Onboarding() {
               <div className="font-head text-base" style={{ color: C.text }}>Czas dla siebie</div>
             </div>
             <p className="font-body text-xs mb-4" style={{ color: C.muted }}>
-              Możecie zaznaczać sobie nawzajem, gdy któreś z Was bierze trochę czasu tylko dla siebie — bez punktów, bez potwierdzania, tylko krótka informacja. Chcesz mieć tę funkcję włączoną?
+              Możecie dawać sobie znać, gdy któreś z Was bierze chwilę tylko dla siebie — bez punktów, bez potwierdzania, tylko krótki sygnał. Włączyć tę funkcję?
             </p>
             <div className="flex gap-2">
               <SelectChip label="Tak, włącz" selected={selfTimeChoice === true} onClick={() => setSelfTimeChoice(true)} />
@@ -296,7 +296,7 @@ export function Onboarding() {
         {step === 4 && (
           <div className="rise flex flex-col items-center text-center">
             <Sparkles size={22} style={{ color: C.gold }} className="mb-4" />
-            <h2 className="font-head text-xl mb-2" style={{ color: C.text }}>Teraz przejdźmy przez najważniejsze funkcje aplikacji</h2>
+            <h2 className="font-head text-xl mb-2" style={{ color: C.text }}>Pokażemy Ci najważniejsze funkcje aplikacji</h2>
             <button onClick={() => setStep(TOTAL_STEPS - 1)} className="font-body text-[11px] mt-3 bg-transparent border-0 cursor-pointer" style={{ color: C.muted }}>
               Pomiń samouczek
             </button>

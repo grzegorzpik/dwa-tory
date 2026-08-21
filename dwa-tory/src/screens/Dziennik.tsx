@@ -237,7 +237,7 @@ function GoalTrack({
                 <input
                   value={noteDraft}
                   onChange={(e) => onNoteChange(e.target.value)}
-                  placeholder="Notatka (opcjonalnie, tylko do wglądu)"
+                  placeholder="Notatka (opcjonalnie, nic nie zmienia)"
                   autoFocus
                   className="w-full font-body text-xs px-2.5 py-1.5 rounded-lg outline-none rise"
                   style={{ background: C.surface2, color: C.text, border: `1px solid ${C.line}` }}
@@ -289,7 +289,7 @@ function GoalTrack({
                 <input
                   value={noteDraft}
                   onChange={(e) => onNoteChange(e.target.value)}
-                  placeholder="Notatka (opcjonalnie, tylko do wglądu)"
+                  placeholder="Notatka (opcjonalnie, nic nie zmienia)"
                   autoFocus
                   className="w-full font-body text-xs px-2.5 py-1.5 rounded-lg outline-none rise"
                   style={{ background: C.surface2, color: C.text, border: `1px solid ${C.line}` }}
