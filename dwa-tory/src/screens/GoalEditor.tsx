@@ -491,7 +491,7 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
 
                 {!isTask(form) && (
                   <div className="rounded-xl p-3" style={{ background: C.surface2, border: `1px solid ${C.line}` }}>
-                    <div className="font-body text-[10px]" style={{ color: C.muted }}>Pominięcie dnia jest w porządku — apka to uwzględnia i nie karze Cię za to.</div>
+                    <div className="font-body text-[10px]" style={{ color: C.muted }}>Pominięcie dnia jest ok — apka to widzi, ale nie robi z tego dramatu.</div>
                   </div>
                 )}
               </div>
