@@ -7,10 +7,11 @@
 // podgląd tego dnia — patrz DayDetailModal.
 
 import { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import { Avatar } from '../components/Avatar';
 import { DayDetailModal } from '../components/DayDetailModal';
 import { GoalDetailModal } from '../components/GoalDetailModal';
+import { GoalDot } from '../components/GoalDot';
 import { MonthCalendar } from '../components/MonthCalendar';
 import {
   calendarMilestonesFor,
@@ -22,9 +23,10 @@ import {
   type CalendarMilestone,
   type DayStatus,
 } from '../lib/kalendarz';
+import { milestonesFor } from '../lib/goals';
 import { addDays, DAY_LABELS, MONTH_NAMES, monthAbbr, startOfWeek, today, ymdKey, type Ymd } from '../lib/calendarUtils';
 import { useAppData } from '../store/AppDataContext';
-import { C } from '../theme';
+import { C, TYPE_COLOR } from '../theme';
 import type { Goal, Person } from '../types';
 
 type ViewMode = 'mine' | 'partner' | 'both';
@@ -141,6 +143,21 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
       )}
 
       <div>
+        <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Cele</div>
+        {peopleWithGoals.every((p) => p.goals.length === 0) ? (
+          <EmptyRow text="Brak celów do pokazania." />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {peopleWithGoals.flatMap(({ person, goals: personGoals }) =>
+              personGoals.map((g) => (
+                <GoalListRow key={g.id} goal={g} person={person} showAvatar={view === 'both'} onClick={() => setSelectedGoal(g)} />
+              )),
+            )}
+          </div>
+        )}
+      </div>
+
+      <div>
         <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Do zrobienia</div>
         {upcomingShown.length === 0 ? (
           <EmptyRow text="Brak nadchodzących kamieni." />
@@ -196,6 +213,35 @@ function ShowMoreButton({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick} className="w-full font-body text-[10px] py-2 mt-1 bg-transparent border-0 cursor-pointer" style={{ color: C.muted }}>
       Pokaż więcej
+    </button>
+  );
+}
+
+/** Lista celów widocznych w tej zakładce — dostępna od razu po dodaniu celu, bez czekania na kamień milowy czy pierwsze odhaczenie (na prośbę użytkownika, poza spec). */
+function GoalListRow({ goal, person, showAvatar, onClick }: { goal: Goal; person: Person; showAvatar: boolean; onClick: () => void }) {
+  const trackColor = TYPE_COLOR[goal.type];
+  const milestones = milestonesFor(goal);
+  const doneCount = milestones.filter((m) => m.done).length;
+  const subtitle =
+    goal.milestones.length > 0
+      ? `${doneCount}/${goal.milestones.length} kamieni`
+      : goal.character === 'habit'
+        ? `nawyk · ${goal.cadenceLabel}`
+        : goal.cadenceLabel;
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full rounded-xl px-3 py-2.5 flex items-center gap-3 cursor-pointer text-left border-0 bg-transparent"
+      style={{ background: C.surface, border: `1px solid ${C.line}` }}
+    >
+      {showAvatar && <Avatar person={person} size={20} />}
+      <GoalDot color={trackColor} character={goal.character} size={8} />
+      <div className="flex-1 min-w-0">
+        <div className="font-body text-[12px] truncate" style={{ color: C.text }}>{goal.title}</div>
+        <div className="font-body text-[10px] truncate" style={{ color: C.muted }}>{subtitle}</div>
+      </div>
+      <ChevronRight size={14} style={{ color: C.muted }} className="shrink-0" />
     </button>
   );
 }
