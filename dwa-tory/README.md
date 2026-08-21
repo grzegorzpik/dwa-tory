@@ -101,6 +101,25 @@ zapisywaną w momencie akcji mapę dzień→wynik. To wystarcza do dziś i
 wstecz; pełne, automatyczne przełączanie dnia zostawione jako świadomie
 odłożone follow-up.
 
+**Uwaga architektoniczna (Szybkie zadanie):** w Kreatorze obok "Nawyk /
+Cel z terminem / Treść cykliczna" jest czwarta opcja — "Szybkie zadanie".
+Wcześniej ten branch kodu w `submit()` (`GoalEditor.tsx`) świadomie NIE
+zapisywał zadania jako `Goal` (brak kadencji/kamieni do liczenia — nie
+pasuje do modelu celu), z zamiarem podpięcia eksportu do kalendarza —
+ale nigdy nie wróciliśmy do tego przy budowie kroku 10, więc zadanie po
+prostu znikało po zapisaniu. Naprawione dodaniem osobnego, równoległego
+modelu `Task` (`src/lib/tasksSync.ts`, tabela `tasks`,
+`0005_tasks.sql`) — bez `visibleToPartner` (zawsze tylko własne, spec
+§5.5 nie przewiduje współdzielenia zadań), zapisywane lokalnie
+(`db.ts`) i do Supabase jak cele, ale bez subskrypcji Realtime (ten sam
+wzorzec co przy celach własnych — tylko odczyt przy starcie, bez efektu
+na żywo, bo dane inne osoby nigdy ich nie dotyczą). Zadanie jest teraz
+widoczne w trzech miejscach: (1) natychmiast po zapisaniu generuje i
+otwiera zdarzenie .ics jak cel z włączonym sync kalendarza; (2) sekcja
+"Zadania na dziś" w Dzienniku (tylko gdy są zadania na dziś); (3)
+Kalendarz — znacznik dnia, sekcja "Zadania" i lista w podglądzie dnia
+(`DayDetailModal`), z odhaczaniem/usuwaniem w miejscu.
+
 ## Uruchomienie
 
 Appka wymaga prawdziwego projektu Supabase (backend, krok 7) — bez tego
@@ -113,7 +132,8 @@ backendu).
 2. Odpal po kolei migracje z `supabase/migrations/` (SQL Editor w panelu
    Supabase, albo `supabase db push` z lokalnie zainstalowanym Supabase
    CLI) — `0001_init_schema.sql` → `0002_rls_policies.sql` →
-   `0003_pairing.sql` → `0004_realtime.sql`, w tej kolejności.
+   `0003_pairing.sql` → `0004_realtime.sql` → `0005_tasks.sql`, w tej
+   kolejności.
 3. Skopiuj `.env.local.example` do `.env.local` i wklej `Project URL` oraz
    `anon public` key ze Settings → API swojego projektu Supabase.
 
@@ -147,6 +167,7 @@ danych daje RLS w bazie (`0002_rls_policies.sql`), nie ukrycie klucza.
 - `src/lib/supabaseClient.ts` — jedyne miejsce importujące `@supabase/supabase-js`
 - `src/lib/pairing.ts` — generowanie/wymiana kodu parowania kont
 - `src/lib/goalsSync.ts` — sync celów z Supabase (local-first + Realtime)
+- `src/lib/tasksSync.ts` — sync "Szybkich zadań" z Supabase (local-first, bez Realtime — własne dane, jak cele)
 - `src/store/AuthContext.tsx` — sesja Supabase Auth (magic link/hasło)
 - `supabase/migrations/` — schemat bazy + RLS + parowanie + Realtime, w kolejności aplikowania
 - `src/store/AppDataContext.tsx` — stan aplikacji + mutacje z zapisem lokalnym

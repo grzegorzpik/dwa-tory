@@ -119,6 +119,19 @@ export interface AppSettings {
   hasCompletedOnboarding: boolean;
 }
 
+export interface Task {
+  id: string; // crypto.randomUUID() — spec §8
+  personId: string;
+  title: string;
+  /** YYYY-MM-DD (ymdKey) — dzień, na który zaplanowane. Domyślnie dziś, jeśli w Kreatorze nie wybrano innej daty. */
+  date: string;
+  /** Wolny tekst jak Goal.cadenceTimeOfDay — Kreator nie ma <input type="time">. */
+  time?: string;
+  done: boolean;
+  /** ISO timestamp ostatniego zapisu — spójne z Goal.updatedAt. */
+  updatedAt?: string;
+}
+
 export interface AppNotification {
   id: string;
   /** Kto wykonał akcję opisaną w `text` — realny id konta Supabase (nie 'a'/'b' z demo). */

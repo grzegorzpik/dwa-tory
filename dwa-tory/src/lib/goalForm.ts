@@ -2,10 +2,10 @@
 // Formularz ma dwie gałęzie: "szybkie zadanie" (skrócona ścieżka) i "cel do
 // śledzenia" (pełne drzewo decyzyjne z charakterem/kadencją/kamieniami).
 
-import { DAY_LABELS, formatShortDate, minimalVersionCap, monthAbbr, parseShortDate, sessionsPerMonth, today, type Ymd } from './calendarUtils';
+import { DAY_LABELS, formatShortDate, minimalVersionCap, monthAbbr, parseShortDate, sessionsPerMonth, today, ymdKey, type Ymd } from './calendarUtils';
 import { uuid } from './id';
 import { C, TYPE_COLOR } from '../theme';
-import type { Goal, GoalCharacter, Milestone } from '../types';
+import type { Goal, GoalCharacter, Milestone, Task } from '../types';
 
 export type CadenceType = 'daily' | 'weekdays' | 'perWeekCount' | 'monthly';
 
@@ -155,6 +155,18 @@ export function canProceed(f: GoalFormState, step: number): boolean {
     if (f.milestonePlan === 'now') return f.milestoneDates.length > 0;
   }
   return true;
+}
+
+/** Buduje finalny obiekt Task z gotowego formularza (tylko gałąź "zadanie"). Bez wybranej daty w Kreatorze domyślnie dziś — "szybkie" zadanie ma się dziać od razu, nie wisieć bez terminu. */
+export function formStateToTask(f: GoalFormState, personId: string): Task {
+  return {
+    id: uuid(),
+    personId,
+    title: f.name.trim(),
+    date: ymdKey(f.taskDay ?? today()),
+    time: f.taskTime.trim() || undefined,
+    done: false,
+  };
 }
 
 /** Buduje finalny obiekt Goal z gotowego formularza (tylko gałąź "cel", nie zadanie). */

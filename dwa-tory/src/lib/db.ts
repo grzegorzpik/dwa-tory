@@ -7,18 +7,19 @@
 // nic w aplikacji nie powinno odwoływać się do window.storage.
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { AppNotification, AppSettings, Goal, Person } from '../types';
+import type { AppNotification, AppSettings, Goal, Person, Task } from '../types';
 
 interface DwaToryDB extends DBSchema {
   people: { key: string; value: Person };
   goals: { key: string; value: Goal; indexes: { personId: string } };
+  tasks: { key: string; value: Task; indexes: { personId: string } };
   settings: { key: string; value: AppSettings };
   notifications: { key: string; value: AppNotification };
   meta: { key: string; value: string };
 }
 
 const DB_NAME = 'dwa-tory';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const CURRENT_USER_KEY = 'currentUserId';
 
 /**
@@ -77,6 +78,10 @@ const getDb = (): Promise<Db> => {
         if (!db.objectStoreNames.contains('goals')) {
           const goals = db.createObjectStore('goals', { keyPath: 'id' });
           goals.createIndex('personId', 'personId');
+        }
+        if (!db.objectStoreNames.contains('tasks')) {
+          const tasks = db.createObjectStore('tasks', { keyPath: 'id' });
+          tasks.createIndex('personId', 'personId');
         }
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings');
@@ -146,6 +151,32 @@ export async function deleteGoal(id: string): Promise<void> {
   // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
   const db = (await getDb()) as any;
   await db.delete('goals', id);
+}
+
+// --- tasks (szybkie zadania — jednorazowe, bez śledzenia) --------------
+
+export async function getTasksForPerson(personId: string): Promise<Task[]> {
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
+  return db.getAllFromIndex('tasks', 'personId', personId);
+}
+
+export async function putTask(task: Task): Promise<void> {
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
+  await db.put('tasks', task);
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
+  await db.delete('tasks', id);
 }
 
 // --- settings -------------------------------------------------------------

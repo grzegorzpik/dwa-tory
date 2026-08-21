@@ -24,8 +24,9 @@ import { pullGoalsForOwner, pushGoal, pushGoalDelete, pushGoalMilestones } from 
 import { pullNotifications, pushNotification, replyToNotification } from '../lib/notificationsSync';
 import { disconnectPair, fetchMyPairing } from '../lib/pairing';
 import { supabase } from '../lib/supabaseClient';
+import { pullTasksForOwner, pushTask, pushTaskDelete } from '../lib/tasksSync';
 import { PERSON_COLOR } from '../theme';
-import type { AppNotification, AppSettings, Goal, Milestone, Person } from '../types';
+import type { AppNotification, AppSettings, Goal, Milestone, Person, Task } from '../types';
 
 interface MilestoneCelebration {
   goalTitle: string;
@@ -46,6 +47,11 @@ interface AppDataValue {
   goals: Goal[]; // cele bieżącego użytkownika
   /** Cele partnerki (z Supabase, RLS egzekwuje visibleToPartner), do odczytu w Kalendarzu. Aktualizuje się przez Realtime. */
   partnerGoals: Goal[];
+  /** "Szybkie zadania" (spec §5.5) — jednorazowe, bez śledzenia, tylko własne (brak widoczności dla partnerki). */
+  tasks: Task[];
+  saveTask: (task: Task) => void;
+  toggleTaskDone: (taskId: string) => void;
+  removeTask: (taskId: string) => void;
   settings: AppSettings;
   justCompleted: boolean;
   celebrateAllDone: boolean;
@@ -111,6 +117,34 @@ async function reconcileOwnGoals(userId: string, localGoals: Goal[]): Promise<Go
   return merged;
 }
 
+/** Ten sam wzorzec scalania co reconcileOwnGoals, dla "Szybkich zadań" — ostatni zapis wygrywa po Task.updatedAt. */
+async function reconcileOwnTasks(userId: string, localTasks: Task[]): Promise<Task[]> {
+  const remoteTasks = await pullTasksForOwner(userId);
+  const localById = new Map(localTasks.map((t) => [t.id, t]));
+  const remoteById = new Map(remoteTasks.map((t) => [t.id, t]));
+  const merged: Task[] = [];
+
+  for (const id of new Set([...localById.keys(), ...remoteById.keys()])) {
+    const local = localById.get(id);
+    const remote = remoteById.get(id);
+    if (local && remote) {
+      const localTime = local.updatedAt ? Date.parse(local.updatedAt) : 0;
+      const remoteTime = remote.updatedAt ? Date.parse(remote.updatedAt) : 0;
+      if (localTime >= remoteTime) {
+        merged.push(local);
+        void pushTask(local, userId).catch((e) => console.error('Nie udało się dopchnąć lokalnej zmiany zadania do Supabase', e));
+      } else {
+        merged.push(remote);
+      }
+    } else {
+      merged.push(local ?? remote!);
+    }
+  }
+
+  await Promise.all(merged.map((t) => db.putTask(t)));
+  return merged;
+}
+
 /**
  * Wiersz w public.profiles musi istnieć zanim Etap 4 (parowanie) będzie mógł
  * odwołać się do niego jako created_by/owner_id. Zakładany raz przy pierwszym
@@ -139,6 +173,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   const [loading, setLoading] = useState(true);
   const [people, setPeople] = useState<Record<string, Person>>({});
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [partner, setPartner] = useState<Person | null>(null);
   const [pairId, setPairId] = useState<string | null>(null);
   const [partnerGoals, setPartnerGoals] = useState<Goal[]>([]);
@@ -176,14 +211,16 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         void syncProfileToSupabase(person);
         await db.setCurrentUserId(userId);
 
-        const [myGoals, savedSettings, allNotifications] = await Promise.all([
+        const [myGoals, myTasks, savedSettings, allNotifications] = await Promise.all([
           db.getGoalsForPerson(userId),
+          db.getTasksForPerson(userId),
           db.getSettings(),
           db.getAllNotifications(),
         ]);
         if (cancelled) return;
         setPeople({ [userId]: person });
         setGoals(myGoals);
+        setTasks(myTasks);
         setNotifications(allNotifications);
         setSettings(savedSettings ?? DEFAULT_SETTINGS);
 
@@ -194,6 +231,11 @@ export function AppDataProvider({ userId, children }: { userId: string; children
             if (!cancelled) setGoals(merged);
           })
           .catch((e) => console.error('Nie udało się zsynchronizować celów z Supabase', e));
+        reconcileOwnTasks(userId, myTasks)
+          .then((merged) => {
+            if (!cancelled) setTasks(merged);
+          })
+          .catch((e) => console.error('Nie udało się zsynchronizować zadań z Supabase', e));
       } catch (e) {
         console.error('Nie udało się wczytać/zainicjalizować danych lokalnych', e);
       } finally {
@@ -447,6 +489,38 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     void pushGoalDelete(goalId).catch((e) => console.error('Nie udało się usunąć celu z Supabase', e));
   }, []);
 
+  /** Stempluje updatedAt, zapisuje lokalnie i wypycha w tle do Supabase — ten sam wzorzec co persistGoal. */
+  const persistTask = useCallback(
+    (task: Task): Task => {
+      const stamped: Task = { ...task, updatedAt: new Date().toISOString() };
+      db.putTask(stamped).catch((e) => console.error('Nie udało się zapisać zadania lokalnie', e));
+      void pushTask(stamped, userId).catch((e) => console.error('Nie udało się zsynchronizować zadania z Supabase', e));
+      return stamped;
+    },
+    [userId],
+  );
+
+  const saveTask = useCallback(
+    (task: Task) => {
+      const stamped = persistTask(task);
+      setTasks((prev) => (prev.some((t) => t.id === stamped.id) ? prev.map((t) => (t.id === stamped.id ? stamped : t)) : [...prev, stamped]));
+    },
+    [persistTask],
+  );
+
+  const toggleTaskDone = useCallback(
+    (taskId: string) => {
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? persistTask({ ...t, done: !t.done }) : t)));
+    },
+    [persistTask],
+  );
+
+  const removeTask = useCallback((taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    db.deleteTask(taskId).catch((e) => console.error('Nie udało się usunąć zadania lokalnie', e));
+    void pushTaskDelete(taskId).catch((e) => console.error('Nie udało się usunąć zadania z Supabase', e));
+  }, []);
+
   const sendReply = useCallback((notificationId: string, text: string) => {
     setNotifications((prev) =>
       prev.map((n) => {
@@ -494,6 +568,10 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     disconnectPartner,
     goals,
     partnerGoals,
+    tasks,
+    saveTask,
+    toggleTaskDone,
+    removeTask,
     settings,
     justCompleted,
     celebrateAllDone,

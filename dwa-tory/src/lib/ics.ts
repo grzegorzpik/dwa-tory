@@ -26,8 +26,8 @@
 // SafariViewController, zależnie od wersji iOS) ma tę samą warstwę UI, która
 // już wcześniej poprawnie rozpoznawała data:text/calendar w zwykłej karcie.
 
-import { addDays, daysInMonth, isoWeekday, today, type Ymd } from './calendarUtils';
-import type { Goal } from '../types';
+import { addDays, daysInMonth, isoWeekday, parseYmdKey, today, type Ymd } from './calendarUtils';
+import type { Goal, Task } from '../types';
 
 // Indeks 0=Pn..6=Nd — ten sam porządek co DAY_LABELS w calendarUtils.
 const ICAL_WEEKDAY = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
@@ -146,21 +146,68 @@ export function icsDataUri(goal: Goal): string {
 }
 
 /**
- * Główna ścieżka dodawania celu do kalendarza — wywoływana zarówno od razu
- * po zapisaniu celu z włączonym sync (GoalEditor), jak i z przycisku
- * "Dodaj do Kalendarza" w podglądzie celu (GoalDetailModal). Element <a>
- * (nie window.open ani window.location) + target="_blank" to najbardziej
- * niezawodny sposób na wymuszenie otwarcia w prawdziwym Safari z poziomu
- * standalone PWA na iOS — patrz komentarz na górze pliku. MUSI być wywołane
- * synchronicznie z gestu użytkownika (kliknięcie), inaczej Safari zablokuje
- * to jak wyskakujące okienko.
+ * Buduje treść pliku .ics dla "Szybkiego zadania" (spec §5.5) — jednorazowe
+ * zdarzenie na konkretny dzień, bez RRULE (zadanie z natury się nie
+ * powtarza, w odróżnieniu od Celu).
  */
-export function shareOrOpenIcsForGoal(goal: Goal): void {
+export function buildIcsForTask(task: Task): string {
+  const date = parseYmdKey(task.date);
+  const time = parseTimeOfDay(task.time);
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Dwa Tory//PL',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:${task.id}@dwa-tory`,
+    `DTSTAMP:${utcStamp(new Date())}`,
+  ];
+
+  if (time) {
+    const end = addMinutes(time.h, time.m, 30);
+    const endDate = end.dayDelta > 0 ? addDays(date, end.dayDelta) : date;
+    lines.push(`DTSTART:${compactYmd(date)}T${pad2(time.h)}${pad2(time.m)}00`);
+    lines.push(`DTEND:${compactYmd(endDate)}T${pad2(end.h)}${pad2(end.m)}00`);
+  } else {
+    lines.push(`DTSTART;VALUE=DATE:${compactYmd(date)}`);
+    lines.push(`DTEND;VALUE=DATE:${compactYmd(addDays(date, 1))}`);
+  }
+
+  lines.push(`SUMMARY:${escapeIcsText(task.title)}`);
+  lines.push('END:VEVENT', 'END:VCALENDAR');
+
+  return lines.join('\r\n') + '\r\n';
+}
+
+function icsDataUriForTask(task: Task): string {
+  return `data:text/calendar;charset=utf-8,${encodeURIComponent(buildIcsForTask(task))}`;
+}
+
+/**
+ * Wymusza otwarcie data: URI w prawdziwym Safari zamiast bare WebView
+ * standalone PWA — element <a target="_blank"> doklejony do DOM, nie
+ * window.open ani window.location (patrz komentarz na górze pliku o dwóch
+ * nieudanych wcześniejszych podejściach). MUSI być wywołane synchronicznie
+ * z gestu użytkownika (kliknięcie), inaczej Safari to zablokuje jak
+ * wyskakujące okienko.
+ */
+function openInRealSafari(dataUri: string): void {
   const a = document.createElement('a');
-  a.href = icsDataUri(goal);
+  a.href = dataUri;
   a.target = '_blank';
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+/** Wywoływana zarówno od razu po zapisaniu celu z włączonym sync (GoalEditor), jak i z przycisku "Dodaj do Kalendarza" w podglądzie celu (GoalDetailModal). */
+export function shareOrOpenIcsForGoal(goal: Goal): void {
+  openInRealSafari(icsDataUri(goal));
+}
+
+/** Wywoływana od razu po zapisaniu "Szybkiego zadania" (GoalEditor) — zadania nie mają osobnego przycisku "Dodaj do Kalendarza" w podglądzie, bo nie mają podglądu (nie są Celem). */
+export function shareOrOpenIcsForTask(task: Task): void {
+  openInRealSafari(icsDataUriForTask(task));
 }

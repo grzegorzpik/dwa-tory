@@ -24,10 +24,10 @@ import {
   type DayStatus,
 } from '../lib/kalendarz';
 import { milestonesFor } from '../lib/goals';
-import { addDays, DAY_LABELS, MONTH_NAMES, monthAbbr, startOfWeek, today, ymdKey, type Ymd } from '../lib/calendarUtils';
+import { addDays, DAY_LABELS, formatShortDate, MONTH_NAMES, monthAbbr, parseYmdKey, startOfWeek, today, ymdKey, type Ymd } from '../lib/calendarUtils';
 import { useAppData } from '../store/AppDataContext';
 import { C, TYPE_COLOR } from '../theme';
-import type { Goal, Person } from '../types';
+import type { Goal, Person, Task } from '../types';
 
 type ViewMode = 'mine' | 'partner' | 'both';
 type Period = 'week' | 'month';
@@ -41,7 +41,7 @@ function colorForStatus(status: DayStatus, personColor: string): string {
 const WEEKDAY_NAMES = ['poniedziałek', 'wtorek', 'środę', 'czwartek', 'piątek', 'sobotę', 'niedzielę'];
 
 export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: Goal) => void; onGoToDziennik: () => void }) {
-  const { currentUser, partner, goals, partnerGoals, settings } = useAppData();
+  const { currentUser, partner, goals, partnerGoals, tasks, toggleTaskDone, removeTask, settings } = useAppData();
   const [view, setView] = useState<ViewMode>(partner ? settings.defaultCalendarView : 'mine');
   const [period, setPeriod] = useState<Period>(settings.defaultCalendarPeriod);
   const [anchor, setAnchor] = useState<Ymd>(today());
@@ -70,8 +70,12 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
   const doneShown = showAllDone ? doneList : doneList.slice(0, 5);
 
   const milestonesByDay = (dateKey: string) => milestones.filter((m) => milestoneDateKey(m, t.year) === dateKey);
+  // Zadania nie mają widoczności dla partnerki (spec §5.5) — zawsze tylko własne, bez rozróżnienia po `view`.
+  const tasksByDay = (dateKey: string) => tasks.filter((task) => task.date === dateKey);
+  const upcomingTasks = tasks.filter((task) => !task.done).sort((a, b) => a.date.localeCompare(b.date));
 
   const selectedDayEntries = selectedDay ? dayEntriesFor(peopleWithGoals, selectedDay, t.year, selectedDay === todayKey) : [];
+  const selectedDayTasks = selectedDay ? tasksByDay(selectedDay) : [];
   const selectedDayLabel = selectedDay ? dayDetailLabel(selectedDay, todayKey) : '';
 
   return (
@@ -81,10 +85,13 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
           dateLabel={selectedDayLabel}
           isToday={selectedDay === todayKey}
           entries={selectedDayEntries}
+          tasks={selectedDayTasks}
           onEntryClick={(goal) => {
             setSelectedDay(null);
             setSelectedGoal(goal);
           }}
+          onToggleTask={toggleTaskDone}
+          onDeleteTask={removeTask}
           onGoToDziennik={onGoToDziennik}
           onClose={() => setSelectedDay(null)}
         />
@@ -137,9 +144,9 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
       </div>
 
       {period === 'week' ? (
-        <WeekView anchor={anchor} onAnchorChange={setAnchor} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} milestonesByDay={milestonesByDay} today={t} onDayClick={setSelectedDay} />
+        <WeekView anchor={anchor} onAnchorChange={setAnchor} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} milestonesByDay={milestonesByDay} tasksByDay={tasksByDay} today={t} onDayClick={setSelectedDay} />
       ) : (
-        <MonthView anchor={anchor} onAnchorChange={setAnchor} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} milestonesByDay={milestonesByDay} today={t} onDayClick={setSelectedDay} />
+        <MonthView anchor={anchor} onAnchorChange={setAnchor} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} milestonesByDay={milestonesByDay} tasksByDay={tasksByDay} today={t} onDayClick={setSelectedDay} />
       )}
 
       <div>
@@ -153,6 +160,19 @@ export function Kalendarz({ onEditGoal, onGoToDziennik }: { onEditGoal: (goal: G
                 <GoalListRow key={g.id} goal={g} person={person} showAvatar={view === 'both'} onClick={() => setSelectedGoal(g)} />
               )),
             )}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Zadania</div>
+        {upcomingTasks.length === 0 ? (
+          <EmptyRow text="Brak zaplanowanych zadań." />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {upcomingTasks.map((task) => (
+              <TaskListRow key={task.id} task={task} onClick={() => setSelectedDay(task.date)} />
+            ))}
           </div>
         )}
       </div>
@@ -261,6 +281,21 @@ function MilestoneRow({ m, showAvatar, person }: { m: CalendarMilestone; showAva
   );
 }
 
+/** Zadania nie mają partnerki, więc bez showAvatar/person — zawsze tylko własne. */
+function TaskListRow({ task, onClick }: { task: Task; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full rounded-xl px-3 py-2.5 flex items-center gap-3 cursor-pointer text-left border-0 bg-transparent" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+      <div className="w-12 shrink-0 font-display text-sm text-center" style={{ color: C.gold }}>{formatShortDate(parseYmdKey(task.date))}</div>
+      <div style={{ width: 1, height: 24, background: C.line }} />
+      <div className="flex-1 min-w-0">
+        <div className="font-body text-[12px] truncate" style={{ color: C.text }}>{task.title}</div>
+        {task.time && <div className="font-body text-[10px] truncate" style={{ color: C.muted }}>{task.time}</div>}
+      </div>
+      <ChevronRight size={14} style={{ color: C.muted }} className="shrink-0" />
+    </button>
+  );
+}
+
 interface PeriodViewProps {
   anchor: Ymd;
   onAnchorChange: (y: Ymd) => void;
@@ -270,6 +305,8 @@ interface PeriodViewProps {
   myVisible: ReturnType<typeof visibleGoals>;
   partnerVisible: ReturnType<typeof visibleGoals>;
   milestonesByDay: (dateKey: string) => CalendarMilestone[];
+  /** Zadania nie mają widoczności dla partnerki — pomijane, gdy view === 'partner'. */
+  tasksByDay: (dateKey: string) => Task[];
   today: Ymd;
   onDayClick: (dateKey: string) => void;
 }
@@ -286,7 +323,7 @@ function DayBar({ dateKey, view, currentUser, partner, myVisible, partnerVisible
   return <div className="rounded-full" style={{ width: 5, alignSelf: 'stretch', background: color }} />;
 }
 
-function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisible, partnerVisible, milestonesByDay, today: t, onDayClick }: PeriodViewProps) {
+function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisible, partnerVisible, milestonesByDay, tasksByDay, today: t, onDayClick }: PeriodViewProps) {
   const weekStart = startOfWeek(anchor);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const sameMonth = days[0].month === days[6].month;
@@ -302,6 +339,8 @@ function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisibl
           const dateKey = ymdKey(d);
           const isToday = dateKey === ymdKey(t);
           const dayMilestones = milestonesByDay(dateKey);
+          const dayTasks = view === 'partner' ? [] : tasksByDay(dateKey);
+          const labels = [...dayMilestones.map((m) => m.label), ...dayTasks.map((task) => task.title)];
           return (
             <button
               key={dateKey}
@@ -314,8 +353,8 @@ function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisibl
                 <div className="font-body text-[9px]" style={{ color: C.muted }}>{DAY_LABELS[i]}</div>
                 <div className="font-display text-sm" style={{ color: C.text }}>{d.day}</div>
               </div>
-              <div className="flex-1 min-w-0 font-body text-[11px] truncate" style={{ color: dayMilestones.length ? C.gold : C.muted }}>
-                {dayMilestones.length > 0 ? dayMilestones.map((m) => m.label).join(', ') : '—'}
+              <div className="flex-1 min-w-0 font-body text-[11px] truncate" style={{ color: labels.length ? C.gold : C.muted }}>
+                {labels.length > 0 ? labels.join(', ') : '—'}
               </div>
             </button>
           );
@@ -325,7 +364,7 @@ function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisibl
   );
 }
 
-function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisible, partnerVisible, milestonesByDay, today: t, onDayClick }: PeriodViewProps) {
+function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisible, partnerVisible, milestonesByDay, tasksByDay, today: t, onDayClick }: PeriodViewProps) {
   return (
     <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
       <MonthCalendar
@@ -336,7 +375,7 @@ function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisib
         renderDay={(d) => {
           const dateKey = ymdKey({ year: anchor.year, month: anchor.month, day: d });
           const isToday = dateKey === ymdKey(t);
-          const hasMilestone = milestonesByDay(dateKey).length > 0;
+          const hasNotableEntry = milestonesByDay(dateKey).length > 0 || (view !== 'partner' && tasksByDay(dateKey).length > 0);
           const bg =
             view === 'both' && partner
               ? `linear-gradient(to bottom, ${colorForStatus(dayStatusFor(myVisible, dateKey), currentUser.color)} 50%, ${colorForStatus(dayStatusFor(partnerVisible, dateKey), partner.color)} 50%)`
@@ -345,7 +384,7 @@ function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisib
             <button
               onClick={() => onDayClick(dateKey)}
               className="w-full aspect-square rounded-md flex items-center justify-center font-body cursor-pointer border-0"
-              style={{ fontSize: 10, background: bg, color: C.text, border: `1.5px solid ${hasMilestone ? C.gold : isToday ? C.text : 'transparent'}` }}
+              style={{ fontSize: 10, background: bg, color: C.text, border: `1.5px solid ${hasNotableEntry ? C.gold : isToday ? C.text : 'transparent'}` }}
             >
               {d}
             </button>

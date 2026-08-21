@@ -16,6 +16,7 @@ import {
   cadenceLabel,
   emptyFormState,
   formStateToGoal,
+  formStateToTask,
   goalToFormState,
   isMilestoneStep,
   isSummaryStep,
@@ -27,13 +28,13 @@ import {
   type GoalFormState,
 } from '../lib/goalForm';
 import { DAY_LABELS, monthAbbr, today } from '../lib/calendarUtils';
-import { shareOrOpenIcsForGoal } from '../lib/ics';
+import { shareOrOpenIcsForGoal, shareOrOpenIcsForTask } from '../lib/ics';
 import { useAppData } from '../store/AppDataContext';
 import { C } from '../theme';
 import type { Goal } from '../types';
 
 export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
-  const { currentUser, saveGoal, removeGoal } = useAppData();
+  const { currentUser, saveGoal, removeGoal, saveTask } = useAppData();
   const isEditMode = !!goal;
 
   const [form, setForm] = useState<GoalFormState>(() => (goal ? goalToFormState(goal) : emptyFormState()));
@@ -70,10 +71,15 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
 
   const submit = () => {
     if (isTask(form)) {
-      // Spec §4 nie definiuje osobnego modelu dla "szybkiego zadania" — to
-      // jednorazowa rzecz bez śledzenia, docelowo do jednokierunkowej
-      // synchronizacji z kalendarzem telefonu (krok 10, jeszcze nie
-      // zbudowany). Świadomie nie zapisujemy jej jako Goal.
+      // Osobny model od Goal — zadanie nie ma kadencji ani śledzenia
+      // postępu, obu wymaga Goal (spec §4). Zawsze też od razu próbuje
+      // dodać się do kalendarza telefonu (krok 10) — bez przełącznika, jak
+      // przy Celu, bo to był pierwotny sens "szybkiego zadania": jednorazowa
+      // rzecz na konkretny dzień/godzinę. Wywołanie MUSI być synchroniczne
+      // (patrz lib/ics.ts) — nie awaitować niczego przed nim.
+      const task = formStateToTask(form, currentUser.id);
+      saveTask(task);
+      shareOrOpenIcsForTask(task);
       onClose();
       return;
     }

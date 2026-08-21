@@ -54,6 +54,12 @@ export const startOfWeek = (ymd: Ymd): Ymd => addDays(ymd, -isoWeekday(ymd));
 /** Klucz stabilny do porównań/zapisu w bazie: YYYY-MM-DD. */
 export const ymdKey = (ymd: Ymd) => `${ymd.year}-${String(ymd.month + 1).padStart(2, '0')}-${String(ymd.day).padStart(2, '0')}`;
 
+/** Odwrotność ymdKey — "2026-08-21" → {year:2026, month:7, day:21}. */
+export const parseYmdKey = (key: string): Ymd => {
+  const [year, month, day] = key.split('-').map(Number);
+  return { year, month: month - 1, day };
+};
+
 /** Klucz bieżącego tygodnia (poniedziałek) — napędza reset licznika "X razy w tygodniu". */
 export const currentWeekKey = () => ymdKey(startOfWeek(today()));
 

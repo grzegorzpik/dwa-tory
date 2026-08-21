@@ -3,7 +3,7 @@
 // przesuwania z konfliktem, kamienie milowe, "Czas dla siebie" opcjonalnie.
 
 import { useState } from 'react';
-import { Check, CalendarClock, ChevronDown, ChevronRight, Info, X, Flame, Sparkles, Heart, Undo2 } from 'lucide-react';
+import { Check, CalendarClock, ChevronDown, ChevronRight, Info, X, Flame, Sparkles, Heart, Trash2, Undo2 } from 'lucide-react';
 import { Avatar } from '../components/Avatar';
 import { DayChip } from '../components/DayChip';
 import { GoalDetailModal } from '../components/GoalDetailModal';
@@ -11,6 +11,7 @@ import { GoalDot } from '../components/GoalDot';
 import { MiniTrack } from '../components/MiniTrack';
 import { MilestoneOverlay } from '../components/MilestoneOverlay';
 import { WeeklyProgress } from '../components/WeeklyProgress';
+import { ymdKey, today } from '../lib/calendarUtils';
 import { weekProgressFor } from '../lib/goals';
 import { useAppData } from '../store/AppDataContext';
 import { C, TYPE_COLOR } from '../theme';
@@ -20,6 +21,9 @@ export function Dziennik({ onEditGoal }: { onEditGoal: (goal: Goal) => void }) {
   const {
     currentUser,
     goals,
+    tasks,
+    toggleTaskDone,
+    removeTask,
     justCompleted,
     celebrateAllDone,
     milestoneCelebration,
@@ -30,6 +34,8 @@ export function Dziennik({ onEditGoal }: { onEditGoal: (goal: Goal) => void }) {
     resolveDrop,
     settings,
   } = useAppData();
+
+  const todayTasks = tasks.filter((t) => t.date === ymdKey(today()));
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [noteOpen, setNoteOpen] = useState<Record<string, boolean>>({});
@@ -165,6 +171,39 @@ export function Dziennik({ onEditGoal }: { onEditGoal: (goal: Goal) => void }) {
           </div>
         )}
       </div>
+
+      {todayTasks.length > 0 && (
+        <div className="rounded-2xl p-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+          <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Zadania na dziś</div>
+          <div className="flex flex-col gap-1.5">
+            {todayTasks.map((t) => (
+              <TaskRow key={t.id} title={t.title} time={t.time} done={t.done} onToggle={() => toggleTaskDone(t.id)} onDelete={() => removeTask(t.id)} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskRow({ title, time, done, onToggle, onDelete }: { title: string; time?: string; done: boolean; onToggle: () => void; onDelete: () => void }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <button
+        onClick={onToggle}
+        aria-label={done ? 'Odznacz zadanie' : 'Zadanie zrobione'}
+        className="rounded-full flex items-center justify-center shrink-0 cursor-pointer"
+        style={{ width: 22, height: 22, border: `1.5px solid ${done ? C.gold : C.line}`, background: done ? C.gold : 'transparent' }}
+      >
+        {done && <Check size={12} style={{ color: '#15241F' }} />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="font-body text-[12px] truncate" style={{ color: done ? C.muted : C.text, textDecoration: done ? 'line-through' : 'none' }}>{title}</div>
+        {time && <div className="font-body text-[10px]" style={{ color: C.muted }}>{time}</div>}
+      </div>
+      <button onClick={onDelete} aria-label="Usuń zadanie" className="bg-transparent border-0 cursor-pointer shrink-0 flex items-center justify-center" style={{ color: C.muted, width: 28, height: 28 }}>
+        <Trash2 size={13} />
+      </button>
     </div>
   );
 }
