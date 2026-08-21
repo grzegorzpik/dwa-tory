@@ -4,15 +4,27 @@
 // bez backendu to eksport zdarzenia w standardzie iCalendar (.ics), spec
 // RFC 5545. Apka celuje wyłącznie w iPhone'a.
 //
-// UWAGA: link data: BEZ atrybutu download (pierwsza wersja tego pliku)
-// działa jako "otwórz ekran Dodaj do kalendarza" tylko w zwykłej karcie
-// Safari — appka dodana do ekranu głównego (standalone PWA, czyli docelowy
-// sposób używania tej apki) renderuje się we własnym, bardziej ograniczonym
-// WebView, gdzie ta sama nawigacja po prostu nic nie robi. Stąd zgłoszenie
-// "przycisk nie działa". Web Share API z plikami (obsługiwane w standalone
-// PWA od iOS 15) działa w obu kontekstach — to teraz główna ścieżka,
-// data: URI zostaje jako fallback dla starszego iOS/przeglądarek bez
-// obsługi udostępniania plików.
+// Historia dwóch nieudanych podejść, zapisana żeby nie próbować ich
+// ponownie:
+// 1. Link data: BEZ atrybutu download (pierwsza wersja) — działa jako
+//    "otwórz ekran Dodaj do kalendarza" w zwykłej karcie Safari, ale appka
+//    dodana do ekranu głównego (standalone PWA, czyli docelowy sposób
+//    używania tej apki) renderuje się we własnym, bardziej ograniczonym
+//    WebView, gdzie ta sama nawigacja po prostu nic nie robi.
+// 2. Web Share API z plikami (druga wersja) — arkusz udostępniania się
+//    pokazuje, ale iOS nie rozpoznaje udostępnionego pliku jako zdarzenie
+//    kalendarza (zweryfikowane na prawdziwym urządzeniu: plik "się otwiera",
+//    ale bez akcji "Dodaj do kalendarza") — mapowanie MIME/UTI dla plików
+//    .ics przez Web Share jest na iOS niespójne między wersjami.
+//
+// Obecne podejście: wymuszenie nawigacji do data: URI w PRAWDZIWYM Safari
+// (nie w bare WebView appki dodanej do ekranu głównego) przez kliknięcie w
+// realny, doklejony do DOM element <a target="_blank"> — to standardowa
+// sztuczka na "wypchnięcie" standalone PWA do Safari dla treści, które WKWebView
+// appki nie potrafi obsłużyć specjalnie (to samo dotyczy np. plików PDF czy
+// vCard). Safari (czy to pełny Safari.app, czy modal w stylu
+// SafariViewController, zależnie od wersji iOS) ma tę samą warstwę UI, która
+// już wcześniej poprawnie rozpoznawała data:text/calendar w zwykłej karcie.
 
 import { addDays, daysInMonth, isoWeekday, today, type Ymd } from './calendarUtils';
 import type { Goal } from '../types';
@@ -128,46 +140,27 @@ export function buildIcsForGoal(goal: Goal): string {
   return lines.join('\r\n') + '\r\n';
 }
 
-/**
- * Fallback: data: URI BEZ atrybutu download — w zwykłej karcie Safari (nie
- * standalone PWA) to wystarcza, żeby otworzyć natywny ekran "Dodaj do
- * kalendarza" zamiast po prostu zapisać plik do Plików.
- */
+/** data: URI z treścią zdarzenia — bez atrybutu download, żeby to była nawigacja, nie pobranie pliku. */
 export function icsDataUri(goal: Goal): string {
   return `data:text/calendar;charset=utf-8,${encodeURIComponent(buildIcsForGoal(goal))}`;
-}
-
-function icsFileName(goal: Goal): string {
-  const slug = goal.title
-    .toLowerCase()
-    .replace(/ł/g, 'l') // jedyna polska litera, która nie rozkłada się przez NFD na literę+akcent
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // usuń rozłożone znaki diakrytyczne po NFD (ą -> a + combining ogonek, itd.)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return `${slug || 'wydarzenie'}.ics`;
 }
 
 /**
  * Główna ścieżka dodawania celu do kalendarza — wywoływana zarówno od razu
  * po zapisaniu celu z włączonym sync (GoalEditor), jak i z przycisku
- * "Dodaj do Kalendarza" w podglądzie celu (GoalDetailModal). Web Share API
- * z plikami działa w standalone PWA (docelowy sposób używania tej apki na
- * iPhonie), gdzie zwykła nawigacja do data: URI nic nie robi. MUSI być
- * wywołane synchronicznie z gestu użytkownika (kliknięcie) — żadnego
- * awaita przed nią, inaczej Safari odrzuci z "Must be handling a user
- * gesture".
+ * "Dodaj do Kalendarza" w podglądzie celu (GoalDetailModal). Element <a>
+ * (nie window.open ani window.location) + target="_blank" to najbardziej
+ * niezawodny sposób na wymuszenie otwarcia w prawdziwym Safari z poziomu
+ * standalone PWA na iOS — patrz komentarz na górze pliku. MUSI być wywołane
+ * synchronicznie z gestu użytkownika (kliknięcie), inaczej Safari zablokuje
+ * to jak wyskakujące okienko.
  */
-export async function shareOrOpenIcsForGoal(goal: Goal): Promise<void> {
-  const file = new File([buildIcsForGoal(goal)], icsFileName(goal), { type: 'text/calendar' });
-  if (navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: goal.title });
-      return;
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return; // użytkownik zamknął arkusz udostępniania — nie błąd
-      console.error('Udostępnienie pliku .ics nie powiodło się, próbuję data: URI', e);
-    }
-  }
-  window.location.href = icsDataUri(goal);
+export function shareOrOpenIcsForGoal(goal: Goal): void {
+  const a = document.createElement('a');
+  a.href = icsDataUri(goal);
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }

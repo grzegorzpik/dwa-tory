@@ -66,15 +66,20 @@ powtarzania dopasowaną do kadencji celu (codziennie/konkretne dni
 tygodnia/co miesiąc; „X razy w tygodniu” nie wskazuje konkretnych dni, więc
 dostaje cotygodniowe przypomnienie z zastrzeżeniem w opisie).
 
-Pierwsza wersja podawała to jako link `data:text/calendar` bez atrybutu
-`download` — działa jako "otwórz ekran Dodaj do kalendarza" w zwykłej
-karcie Safari, ale appka dodana do ekranu głównego (standalone PWA, czyli
-docelowy sposób jej używania) renderuje się we własnym, bardziej
-ograniczonym WebView, gdzie ta sama nawigacja nic nie robi ("przycisk nie
-działa" — zgłoszone i naprawione). `shareOrOpenIcsForGoal()` używa teraz
-Web Share API z plikami (obsługiwane w standalone PWA od iOS 15) jako
-głównej ścieżki — otwiera natywny arkusz udostępniania z opcją "Dodaj do
-kalendarza"; `data:` URI zostaje jako fallback dla starszego iOS. Cel z
+Dwa nieudane podejścia po drodze, zapisane w komentarzu na górze
+`src/lib/ics.ts` żeby ich nie próbować ponownie: (1) link `data:text/calendar`
+bez atrybutu `download` — działa jako "otwórz ekran Dodaj do kalendarza" w
+zwykłej karcie Safari, ale appka dodana do ekranu głównego (standalone PWA,
+czyli docelowy sposób jej używania) renderuje się we własnym, bardziej
+ograniczonym WebView, gdzie ta sama nawigacja nic nie robi; (2) Web Share
+API z plikami — arkusz udostępniania się pokazuje, ale zweryfikowane na
+prawdziwym urządzeniu, że iOS nie rozpoznaje udostępnionego pliku jako
+zdarzenie kalendarza (niespójne mapowanie MIME/UTI dla .ics między
+wersjami iOS). Obecne podejście: `shareOrOpenIcsForGoal()` klika w realny,
+doklejony do DOM element `<a target="_blank">` z `data:` URI — to wymusza
+otwarcie w prawdziwym Safari zamiast bare WebView appki (ta sama sztuczka
+co przy PDF/vCard w innych PWA), gdzie nawigacja do `data:text/calendar`
+już wcześniej poprawnie pokazywała "Dodaj do kalendarza". Cel z
 włączonym „Sync z kalendarzem telefonu” (przełącznik w Kreatorze) od razu
 po zapisaniu (przy tworzeniu ALBO przy edycji, jeśli sync właśnie się
 włączył — nie przy każdym kolejnym zapisie) otwiera ten arkusz automatycznie,

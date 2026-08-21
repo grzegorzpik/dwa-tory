@@ -121,7 +121,7 @@ export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose
             </div>
             {goal.syncToPhoneCalendar && (
               <button
-                onClick={() => void shareOrOpenIcsForGoal(goal)}
+                onClick={() => shareOrOpenIcsForGoal(goal)}
                 className="mt-2 w-full font-body text-[11px] py-2.5 rounded-xl flex items-center justify-center gap-1.5 bg-transparent cursor-pointer"
                 style={{ border: `1px solid ${trackColor}`, color: trackColor, minHeight: 44 }}
               >

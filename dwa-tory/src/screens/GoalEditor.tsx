@@ -68,7 +68,7 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
     }
   };
 
-  const submit = async () => {
+  const submit = () => {
     if (isTask(form)) {
       // Spec §4 nie definiuje osobnego modelu dla "szybkiego zadania" — to
       // jednorazowa rzecz bez śledzenia, docelowo do jednokierunkowej
@@ -84,10 +84,11 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
     // "Dodaj do kalendarza" od razu, zamiast zostawiać to jako osobną
     // czynność wymagającą ponownego wejścia w podgląd celu. Bez re-triggera
     // przy zwykłym zapisie edycji z sync już wcześniej włączonym — nie ma
-    // co nagabywać przy każdej drobnej poprawce.
+    // co nagabywać przy każdej drobnej poprawce. Wywołanie MUSI być
+    // synchroniczne (patrz lib/ics.ts) — nie awaitować niczego przed nim.
     const syncJustEnabled = savedGoal.syncToPhoneCalendar && !goal?.syncToPhoneCalendar;
     if (syncJustEnabled) {
-      await shareOrOpenIcsForGoal(savedGoal);
+      shareOrOpenIcsForGoal(savedGoal);
     }
     onClose();
   };
@@ -532,7 +533,7 @@ export function GoalEditor({ goal, onClose }: { goal?: Goal; onClose: () => void
         )}
         {!confirmExit && (
           <button
-            onClick={() => (isSummaryStep(form, step) ? void submit() : setStep((s) => s + 1))}
+            onClick={() => (isSummaryStep(form, step) ? submit() : setStep((s) => s + 1))}
             disabled={!canGoNext}
             className="w-full font-body text-sm font-semibold py-3 rounded-xl border-0 cursor-pointer"
             style={{ background: canGoNext ? trackColor : C.surface2, color: canGoNext ? '#15241F' : C.muted, opacity: canGoNext ? 1 : 0.6 }}
