@@ -1,7 +1,7 @@
 # Dwa Tory
 
 PWA do świadomego gospodarowania czasem i realizacji celów dla dwóch osób.
-Pełna specyfikacja: `../SPECYFIKACJA.pdf` (w wątku, w którym powstał ten kod).
+Pełna specyfikacja: `../docs/SPECYFIKACJA.pdf`.
 
 ## Stan budowy
 
@@ -13,7 +13,7 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [x] 4. Cele + kreator/edytor — pełne drzewo decyzyjne
 - [x] 5. Kalendarz — Mój/Wiola/Wspólny, Tydzień/Miesiąc, Wspólna seria
 - [x] 6. Profil — statystyki, Twoja podróż, ustawienia, eksport danych
-- [ ] 7. Backend (poza zakresem tego wątku — realizowany osobno)
+- [x] 7. Backend — Supabase: schemat + RLS, logowanie (magic link/hasło), parowanie kont, sync celów (local-first + Realtime), wdrożenie na GitHub Pages
 - [x] 8. Powiadomienia — pełna logika panelu (chipy, limit 5 słów, odpowiedziane)
 - [x] 9. Onboarding + samouczek — imię/zdjęcie, status połączenia z partnerką, czas dla siebie, 4 karty funkcji, relaunch z Profilu
 - [x] 10. Integracja z kalendarzem telefonu — eksport zdarzenia .ics per cel, celowo tylko pod iPhone/Safari
@@ -25,24 +25,31 @@ działa w prawdziwej appce (przeglądarka/PWA), nie w podglądzie artifact
 "Dodaj do Kalendarza" z kroku 10 (`data:` URI) — działa na prawdziwym
 iPhonie w Safari, w podglądzie artifact nic nie zrobi.
 
-**Sekcje wymagające backendu:** "Konto i połączenie z partnerem" (status
-z lokalnych danych, rozłączanie/parowanie nieaktywne) i mechanizm push w
-"Powiadomienia" (zapisujemy tylko preferencję) — jasno oznaczone w UI,
-nie udają, że działają. Sama lista powiadomień (co partnerka zrobiła +
-odpowiedzi z limitem 5 słów) jest w pełni funkcjonalna na statycznych
-danych demo — dwukierunkowa wymiana z prawdziwą Wiolą czeka na backend.
+**Co z backendu (krok 7) wciąż nie działa:** mechanizm powiadomień push
+(zapisujemy tylko preferencję w "Powiadomienia" — samo wysyłanie push
+wymaga VAPID + service workera + czegoś, co realnie je wyśle, np. Supabase
+Edge Function na triggerze bazy; nie zbudowane). Tabela `notifications` w
+schemacie (`supabase/migrations/0001_init_schema.sql`) i jej RLS
+(`0002_rls_policies.sql`) już istnieją, ale panel "Powiadomienia" (co
+partnerka zrobiła + odpowiedzi z limitem 5 słów) wciąż czyta/zapisuje
+wyłącznie lokalnie (`src/lib/db.ts`) — nic w kodzie appki jeszcze nie łączy
+go z tą tabelą, więc druga osoba w parze nie zobaczy Twoich odpowiedzi ani
+Ty jej działań. Reszta backendu (konto, parowanie, sync celów) jest w pełni
+realna — patrz `src/lib/pairing.ts`, `src/lib/goalsSync.ts`.
 
-**Uwaga architektoniczna (Onboarding):** dane demo (seed) startują z
-`hasCompletedOnboarding: true`, żeby zakładka Dziennik/Cele/Kalendarz/Profil
-były od razu testowalne bez przechodzenia przez onboarding za każdym razem —
-to świadoma decyzja, nie przeoczenie. Sam ekran onboardingu jest w pełni
-zaimplementowany (`src/screens/Onboarding.tsx`) i wystarczy przełączyć ten
-jeden flag w danych, żeby zobaczyć go od pierwszego uruchomienia. Krok
-"Połącz się z partnerką" pokazuje status z lokalnych danych (partnerka jest
-już sparowana w demo) zamiast udawać działające generowanie kodu zaproszenia
-— realne parowanie kont wymaga backendu (krok 7), zgodnie z tym samym
-podejściem co w Profilu. Samouczek (4 karty funkcji) można też uruchomić
-ponownie w dowolnym momencie z Profilu → Ustawienia.
+**Uwaga architektoniczna (Onboarding):** od backendu (krok 7) `hasCompletedOnboarding`
+to prawdziwe ustawienie nowego konta Supabase, nie flaga w danych demo —
+każde nowo założone konto (magic link albo hasło) przechodzi przez
+onboarding raz, przy pierwszym logowaniu. Krok "Połącz się z partnerką"
+(`src/screens/Onboarding.tsx`) generuje/wymienia prawdziwy kod parowania
+(`src/lib/pairing.ts`), z odpytywaniem co kilka sekund, czy partnerka się
+już połączyła (pełny Realtime zamiast odpytywania byłby ładniejszy, ale
+odpytywanie działa i jest prostsze — nieodłożony follow-up, nie błąd).
+Samouczek (4 karty funkcji) można też uruchomić ponownie w dowolnym
+momencie z Profilu → Ustawienia. **Uwaga:** `src/lib/seedData.ts` (dane
+demo z etapów 1-10 tego wątku) został w repo, ale odkąd doszedł backend nic
+go już nie importuje — martwy kod, do usunięcia albo świadomego
+zachowania jako dane do lokalnego developmentu bez Supabase.
 
 **Uwaga architektoniczna (Integracja z kalendarzem telefonu):** apka celuje
 wyłącznie w iPhone'a (decyzja użytkownika), więc krok 10 nie próbuje być
@@ -75,12 +82,33 @@ odłożone follow-up.
 
 ## Uruchomienie
 
+Appka wymaga prawdziwego projektu Supabase (backend, krok 7) — bez tego
+`npm run dev` wystartuje, ale appka rzuci błędem od razu przy ładowaniu
+(`src/lib/supabaseClient.ts` celowo rzuca głośno zamiast cicho działać bez
+backendu).
+
+1. Załóż projekt na [supabase.com](https://supabase.com) (darmowy tier
+   wystarcza).
+2. Odpal po kolei migracje z `supabase/migrations/` (SQL Editor w panelu
+   Supabase, albo `supabase db push` z lokalnie zainstalowanym Supabase
+   CLI) — `0001_init_schema.sql` → `0002_rls_policies.sql` →
+   `0003_pairing.sql` → `0004_realtime.sql`, w tej kolejności.
+3. Skopiuj `.env.local.example` do `.env.local` i wklej `Project URL` oraz
+   `anon public` key ze Settings → API swojego projektu Supabase.
+
 ```bash
 npm install
 npm run dev       # serwer deweloperski
 npm run build     # build produkcyjny (tsc + vite build), generuje service worker
 npm run preview   # podgląd builda produkcyjnego (tu realnie testować tryb offline/instalowalność)
 ```
+
+**Wdrożenie:** `.github/workflows/deploy.yml` builduje i publikuje na
+GitHub Pages przy każdym pushu do `main`. Wymaga tych samych dwóch zmiennych
+jako **sekretów repo** (Settings → Secrets and variables → Actions):
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — klucz `anon` jest publiczny
+z założenia (bezpieczny w buncie frontendu), rzeczywiste bezpieczeństwo
+danych daje RLS w bazie (`0002_rls_policies.sql`), nie ukrycie klucza.
 
 ## Struktura
 
@@ -92,7 +120,13 @@ npm run preview   # podgląd builda produkcyjnego (tu realnie testować tryb off
 - `src/lib/photo.ts` — kadrowanie zdjęcia profilowego przez `<canvas>`
 - `src/lib/exportData.ts` — eksport danych użytkownika do JSON
 - `src/lib/notifications.ts` — limit słów i walidacja odpowiedzi na powiadomienie
-- `src/lib/db.ts` — warstwa IndexedDB (realny zamiennik `window.storage` z makiet)
+- `src/lib/ics.ts` — eksport celu jako zdarzenie iCalendar (krok 10, iPhone/Safari)
+- `src/lib/db.ts` — warstwa IndexedDB (lokalny cache/offline — Supabase jest źródłem prawdy, krok 7)
+- `src/lib/supabaseClient.ts` — jedyne miejsce importujące `@supabase/supabase-js`
+- `src/lib/pairing.ts` — generowanie/wymiana kodu parowania kont
+- `src/lib/goalsSync.ts` — sync celów z Supabase (local-first + Realtime)
+- `src/store/AuthContext.tsx` — sesja Supabase Auth (magic link/hasło)
+- `supabase/migrations/` — schemat bazy + RLS + parowanie + Realtime, w kolejności aplikowania
 - `src/store/AppDataContext.tsx` — stan aplikacji + mutacje z zapisem lokalnym
 - `src/screens/` — ekrany per zakładka
 - `src/components/` — komponenty współdzielone między ekranami
