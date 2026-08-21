@@ -142,7 +142,7 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
         <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Twoja podróż</div>
         {journeyGoals.length === 0 ? (
           <div className="rounded-xl p-3 font-body text-[11px]" style={{ background: C.surface, border: `1px solid ${C.line}`, color: C.muted }}>
-            Nawyki bez końca nie mają czego tu liczyć — podróż pojawi się, gdy dodasz cel z terminem albo etapami.
+            Nawyki bez końca nie mają tu punktu docelowego — podróż pojawi się, gdy dodasz cel z terminem albo etapami.
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -167,7 +167,7 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
                 <ToggleSwitch checked={settings.soundEnabled} onChange={(v) => updateSettings({ soundEnabled: v })} />
               </label>
               <div className="font-body text-[9px]" style={{ color: C.muted }}>
-                Sam mechanizm powiadomień push dołączy w kroku 8/backendzie — tu zapisujemy tylko Twoją preferencję.
+                Sam mechanizm powiadomień push jeszcze nie działa — na razie zapisujemy tylko Twoją preferencję.
               </div>
             </div>
           </SettingsRow>
@@ -383,7 +383,7 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
           <SettingsRow icon={Info} title="O aplikacji" expanded={expanded.has('about')} onToggle={() => toggleRow('about')}>
             <div className="font-body text-[11px]" style={{ color: C.text }}>Dwa Tory</div>
             <div className="font-body text-[10px] mt-1" style={{ color: C.muted }}>
-              Wersja rozwojowa — kroki 1–6 z 10 zrealizowane lokalnie (spec §10).
+              Aplikacja do świadomego gospodarowania czasem i realizacji celów dla dwóch osób.
             </div>
           </SettingsRow>
 
