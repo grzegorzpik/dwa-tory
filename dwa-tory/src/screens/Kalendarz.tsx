@@ -378,7 +378,11 @@ function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisibl
               key={dateKey}
               onClick={() => onDayClick(dateKey)}
               className="rounded-xl px-3 py-2 flex items-center gap-3 cursor-pointer text-left border-0"
-              style={{ background: C.surface, border: `1px solid ${isToday ? C.text : C.line}` }}
+              // Tło (nie tylko obramowanie) dla "dziś" — złoty pasek zadania
+              // (DayBar) jest wystarczająco wyrazisty, żeby cienka ramka sama
+              // w sobie myliła się z "to jest dzisiaj" (zgłoszenie UX). Kolor
+              // celowo nie-złoty, żeby nie kolidował z sygnałem zadania.
+              style={{ background: isToday ? `${C.text}14` : C.surface, border: `1px solid ${isToday ? C.text : C.line}` }}
             >
               <DayBar dateKey={dateKey} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} hasTask={dayTasks.length > 0} />
               <div className="w-9 shrink-0">
@@ -421,12 +425,20 @@ function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisib
           // zmian — dodatkowy kolor tylko za to zaszumiłby.
           const bg = hasTask && statusBg === C.surface2 ? `${C.gold}33` : statusBg;
           return (
+            // Obramowanie i kropka to dwa NIEZALEŻNE sygnały — wcześniej oba dzieliły
+            // jedną ramkę (hasNotableEntry miało pierwszeństwo przed isToday), więc
+            // "dziś" z zadaniem wyglądało tak samo jak zwykły dzień z zadaniem, bez
+            // żadnego śladu, że to akurat dzisiaj (zgłoszenie UX). Ramka = tylko "dziś",
+            // kropka pod cyfrą = tylko "jest tu coś" — nie nadpisują się nawzajem.
             <button
               onClick={() => onDayClick(dateKey)}
-              className="w-full aspect-square rounded-md flex items-center justify-center font-body cursor-pointer border-0"
-              style={{ fontSize: 10, background: bg, color: C.text, border: `1.5px solid ${hasNotableEntry ? C.gold : isToday ? C.text : 'transparent'}` }}
+              className="w-full aspect-square rounded-md flex flex-col items-center justify-center font-body cursor-pointer border-0 relative"
+              style={{ fontSize: 10, background: bg, color: C.text, border: `1.5px solid ${isToday ? C.text : 'transparent'}` }}
             >
               {d}
+              {hasNotableEntry && (
+                <span className="rounded-full absolute" style={{ width: 4, height: 4, background: C.gold, bottom: 3 }} />
+              )}
             </button>
           );
         }}

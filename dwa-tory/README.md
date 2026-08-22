@@ -108,6 +108,19 @@ poprawka dotyczyła tylko widoku miesiąca). `hasTask` podmienia teraz i
 tam szary pasek na przydymiony gold, tym samym warunkiem co w
 `MonthView`.
 
+Efekt uboczny obu tych poprawek: kolor zadania (gold) zaczął się mylić z
+oznaczeniem "dziś" (zgłoszenie UX) — w `MonthView` obramowanie komórki
+było jednym polem dzielonym między dwa sygnały, gdzie `hasNotableEntry`
+(gold) miało pierwszeństwo przed `isToday` (`C.text`), więc dzisiejszy
+dzień Z ZADANIEM wyglądał identycznie jak zwykły dzień z zadaniem — bez
+żadnego śladu, że to akurat dziś. Naprawione rozdzieleniem sygnałów na
+dwa niezależne elementy: obramowanie komórki oznacza WYŁĄCZNIE "dziś"
+(nie nadpisywane już przez zawartość), a mała złota kropka pod cyfrą
+oznacza WYŁĄCZNIE "jest tu coś" — oba widoczne naraz, bez konfliktu. W
+`WeekView` wiersz "dziś" dostał dodatkowo delikatne tło (`${C.text}14`,
+celowo NIE złote, żeby nie kolidowało z paskiem zadania) — sama cienka
+ramka nie była wystarczająco odróżnialna od złotego paska zadania.
+
 **Uwaga architektoniczna (klawiatura na iOS):** dotknięcie dowolnego pola
 tekstowego w Safari na iOS powodowało widoczne "przybliżenie" ekranu
 (zgłoszenie UX) — to twardy próg silnika przeglądarki: Safari sam zooms
