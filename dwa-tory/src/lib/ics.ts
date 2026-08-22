@@ -4,29 +4,35 @@
 // bez backendu to eksport zdarzenia w standardzie iCalendar (.ics), spec
 // RFC 5545. Apka celuje wyłącznie w iPhone'a.
 //
-// Historia dwóch nieudanych podejść, zapisana żeby nie próbować ich
+// Historia trzech nieudanych podejść, zapisana żeby nie próbować ich
 // ponownie:
-// 1. Link data: BEZ atrybutu download (pierwsza wersja) — działa jako
-//    "otwórz ekran Dodaj do kalendarza" w zwykłej karcie Safari, ale appka
-//    dodana do ekranu głównego (standalone PWA, czyli docelowy sposób
-//    używania tej apki) renderuje się we własnym, bardziej ograniczonym
-//    WebView, gdzie ta sama nawigacja po prostu nic nie robi.
-// 2. Web Share API z plikami (druga wersja) — arkusz udostępniania się
-//    pokazuje, ale iOS nie rozpoznaje udostępnionego pliku jako zdarzenie
-//    kalendarza (zweryfikowane na prawdziwym urządzeniu: plik "się otwiera",
-//    ale bez akcji "Dodaj do kalendarza") — mapowanie MIME/UTI dla plików
-//    .ics przez Web Share jest na iOS niespójne między wersjami.
+// 1. Link data: BEZ atrybutu download — działa jako "otwórz ekran Dodaj do
+//    kalendarza" w zwykłej karcie Safari, ale appka dodana do ekranu
+//    głównego (standalone PWA, czyli docelowy sposób używania tej apki)
+//    renderuje się we własnym, bardziej ograniczonym WebView, gdzie ta sama
+//    nawigacja po prostu nic nie robi.
+// 2. Web Share API z plikami — arkusz udostępniania się pokazuje, ale iOS
+//    nie rozpoznaje udostępnionego pliku jako zdarzenie kalendarza
+//    (zweryfikowane na prawdziwym urządzeniu) — mapowanie MIME/UTI dla
+//    plików .ics przez Web Share jest na iOS niespójne między wersjami.
+// 3. Wymuszenie nawigacji do data: URI w Safari przez <a target="_blank">
+//    doklejony do DOM — zweryfikowane na prawdziwym urządzeniu: standalone
+//    PWA otwiera to w oknie typu SFSafariViewController (nie w pełnym
+//    Safari.app), a w tym kontekście data: URI renderuje się jako zwykła,
+//    pusta strona (widoczny tytuł karty "data:") zamiast wywołać ekran
+//    "Dodaj do kalendarza". Ta specjalna obsługa .ics jest najwyraźniej
+//    związana z PRAWDZIWYM żądaniem sieciowym z nagłówkiem
+//    Content-Type: text/calendar, nie z URI wpisanym wprost w przeglądarce
+//    — żadna odmiana data:/blob: tego nie daje, niezależnie od okna, w
+//    którym się otwiera.
 //
-// Obecne podejście: wymuszenie nawigacji do data: URI w PRAWDZIWYM Safari
-// (nie w bare WebView appki dodanej do ekranu głównego) przez kliknięcie w
-// realny, doklejony do DOM element <a target="_blank"> — to standardowa
-// sztuczka na "wypchnięcie" standalone PWA do Safari dla treści, które WKWebView
-// appki nie potrafi obsłużyć specjalnie (to samo dotyczy np. plików PDF czy
-// vCard). Safari (czy to pełny Safari.app, czy modal w stylu
-// SafariViewController, zależnie od wersji iOS) ma tę samą warstwę UI, która
-// już wcześniej poprawnie rozpoznawała data:text/calendar w zwykłej karcie.
+// Obecne podejście: wrzucić wygenerowany plik do publicznego bucketu
+// Supabase Storage (`calendar-exports`, migracja 0007) i otworzyć jego
+// prawdziwy adres https:// — to zwykły request sieciowy z poprawnym
+// nagłówkiem, jak link do zdarzenia w mailu czy na stronie.
 
 import { addDays, daysInMonth, isoWeekday, parseYmdKey, today, type Ymd } from './calendarUtils';
+import { supabase } from './supabaseClient';
 import type { Goal, Task } from '../types';
 
 // Indeks 0=Pn..6=Nd — ten sam porządek co DAY_LABELS w calendarUtils.
@@ -140,11 +146,6 @@ export function buildIcsForGoal(goal: Goal): string {
   return lines.join('\r\n') + '\r\n';
 }
 
-/** data: URI z treścią zdarzenia — bez atrybutu download, żeby to była nawigacja, nie pobranie pliku. */
-export function icsDataUri(goal: Goal): string {
-  return `data:text/calendar;charset=utf-8,${encodeURIComponent(buildIcsForGoal(goal))}`;
-}
-
 /**
  * Buduje treść pliku .ics dla "Szybkiego zadania" (spec §5.5) — jednorazowe
  * zdarzenie na konkretny dzień, bez RRULE (zadanie z natury się nie
@@ -180,34 +181,45 @@ export function buildIcsForTask(task: Task): string {
   return lines.join('\r\n') + '\r\n';
 }
 
-function icsDataUriForTask(task: Task): string {
-  return `data:text/calendar;charset=utf-8,${encodeURIComponent(buildIcsForTask(task))}`;
+/** Wrzuca treść .ics do publicznego bucketu (ścieżka "{ownerId}/{id}.ics" — RLS w 0007 pilnuje, że tylko właściciel może tam pisać) i zwraca jego prawdziwy adres https://. */
+async function uploadIcsAndGetUrl(content: string, ownerId: string, id: string): Promise<string> {
+  const path = `${ownerId}/${id}.ics`;
+  const { error } = await supabase.storage.from('calendar-exports').upload(path, new Blob([content], { type: 'text/calendar;charset=utf-8' }), {
+    contentType: 'text/calendar;charset=utf-8',
+    upsert: true,
+  });
+  if (error) throw new Error(error.message);
+  const { data } = supabase.storage.from('calendar-exports').getPublicUrl(path);
+  return data.publicUrl;
 }
 
 /**
- * Wymusza otwarcie data: URI w prawdziwym Safari zamiast bare WebView
- * standalone PWA — element <a target="_blank"> doklejony do DOM, nie
- * window.open ani window.location (patrz komentarz na górze pliku o dwóch
- * nieudanych wcześniejszych podejściach). MUSI być wywołane synchronicznie
- * z gestu użytkownika (kliknięcie), inaczej Safari to zablokuje jak
- * wyskakujące okienko.
+ * Otwiera puste okno OD RAZU, synchronicznie w geście użytkownika (Safari
+ * blokuje window.open, jeśli między kliknięciem a wywołaniem jest choćby
+ * jeden await), i dopiero po skończonym uploadzie (asynchronicznym)
+ * przekierowuje je na prawdziwy adres pliku. Standardowa sztuczka na
+ * "async, ale w oknie otwartym z gestu użytkownika" (ten sam wzorzec co przy
+ * przekierowaniach do zewnętrznych płatności).
  */
-function openInRealSafari(dataUri: string): void {
-  const a = document.createElement('a');
-  a.href = dataUri;
-  a.target = '_blank';
-  a.rel = 'noopener';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+function openThenNavigate(load: () => Promise<string>): void {
+  const win = window.open('about:blank', '_blank');
+  if (!win) return; // zablokowane przez przeglądarkę — nie ma czym to obejść
+  load()
+    .then((url) => {
+      win.location.href = url;
+    })
+    .catch((e) => {
+      console.error('Nie udało się przygotować zdarzenia kalendarza', e);
+      win.close();
+    });
 }
 
 /** Wywoływana zarówno od razu po zapisaniu celu z włączonym sync (GoalEditor), jak i z przycisku "Dodaj do Kalendarza" w podglądzie celu (GoalDetailModal). */
 export function shareOrOpenIcsForGoal(goal: Goal): void {
-  openInRealSafari(icsDataUri(goal));
+  openThenNavigate(() => uploadIcsAndGetUrl(buildIcsForGoal(goal), goal.personId, goal.id));
 }
 
 /** Wywoływana od razu po zapisaniu "Szybkiego zadania" (GoalEditor) — zadania nie mają osobnego przycisku "Dodaj do Kalendarza" w podglądzie, bo nie mają podglądu (nie są Celem). */
 export function shareOrOpenIcsForTask(task: Task): void {
-  openInRealSafari(icsDataUriForTask(task));
+  openThenNavigate(() => uploadIcsAndGetUrl(buildIcsForTask(task), task.personId, task.id));
 }

@@ -66,7 +66,7 @@ powtarzania dopasowaną do kadencji celu (codziennie/konkretne dni
 tygodnia/co miesiąc; „X razy w tygodniu” nie wskazuje konkretnych dni, więc
 dostaje cotygodniowe przypomnienie z zastrzeżeniem w opisie).
 
-Dwa nieudane podejścia po drodze, zapisane w komentarzu na górze
+Trzy nieudane podejścia po drodze, zapisane w komentarzu na górze
 `src/lib/ics.ts` żeby ich nie próbować ponownie: (1) link `data:text/calendar`
 bez atrybutu `download` — działa jako "otwórz ekran Dodaj do kalendarza" w
 zwykłej karcie Safari, ale appka dodana do ekranu głównego (standalone PWA,
@@ -75,12 +75,30 @@ ograniczonym WebView, gdzie ta sama nawigacja nic nie robi; (2) Web Share
 API z plikami — arkusz udostępniania się pokazuje, ale zweryfikowane na
 prawdziwym urządzeniu, że iOS nie rozpoznaje udostępnionego pliku jako
 zdarzenie kalendarza (niespójne mapowanie MIME/UTI dla .ics między
-wersjami iOS). Obecne podejście: `shareOrOpenIcsForGoal()` klika w realny,
-doklejony do DOM element `<a target="_blank">` z `data:` URI — to wymusza
-otwarcie w prawdziwym Safari zamiast bare WebView appki (ta sama sztuczka
-co przy PDF/vCard w innych PWA), gdzie nawigacja do `data:text/calendar`
-już wcześniej poprawnie pokazywała "Dodaj do kalendarza". Cel z
-włączonym „Sync z kalendarzem telefonu” (przełącznik w Kreatorze) od razu
+wersjami iOS); (3) wymuszenie nawigacji do `data:` URI w Safari przez
+`<a target="_blank">` doklejony do DOM — na prawdziwym urządzeniu
+standalone PWA otworzyło to w oknie typu SFSafariViewController (nie w
+pełnym Safari.app), gdzie `data:` URI pokazał się jako pusta strona
+(widoczny tytuł karty "data:") zamiast ekranu "Dodaj do kalendarza".
+Wniosek: ta specjalna obsługa .ics przez iOS jest związana z prawdziwym
+żądaniem sieciowym z nagłówkiem `Content-Type: text/calendar`, nie z URI
+wpisanym wprost w przeglądarce (żadna odmiana `data:`/`blob:` tego nie
+daje). Obecne (czwarte) podejście: `shareOrOpenIcsForGoal()`/
+`shareOrOpenIcsForTask()` wrzucają wygenerowany plik do publicznego
+bucketu Supabase Storage `calendar-exports` (migracja
+`0007_calendar_exports_bucket.sql`, ścieżka `{ownerId}/{id}.ics`, RLS
+pilnuje że tylko właściciel może tam pisać) i otwierają jego prawdziwy
+adres `https://` — to zwykły request sieciowy z poprawnym nagłówkiem, jak
+link do zdarzenia w mailu. Upload jest asynchroniczny, ale okno MUSI się
+otworzyć synchronicznie w geście kliknięcia (Safari blokuje
+`window.open` z opóźnieniem) — otwieramy więc puste okno od razu i
+dopiero po skończonym uploadzie ustawiamy mu adres (`openThenNavigate()`
+w `ics.ts`, ten sam wzorzec co przy przekierowaniach do płatności).
+Konsekwencja: pliki .ics są odtąd publicznie dostępne pod nieodgadnalnym
+adresem (losowe UUID celu/zadania w ścieżce) — akceptowalne, bo treść to
+tylko tytuł/godzina zdarzenia, ta sama wrażliwość co zwykłe zaproszenie
+kalendarzowe wysłane mailem. Cel z włączonym „Sync z kalendarzem
+telefonu” (przełącznik w Kreatorze) od razu
 po zapisaniu (przy tworzeniu ALBO przy edycji, jeśli sync właśnie się
 włączył — nie przy każdym kolejnym zapisie) otwiera ten arkusz automatycznie,
 bez konieczności ponownego wchodzenia w podgląd celu; przycisk „Dodaj do
@@ -170,7 +188,10 @@ backendu).
    Supabase, albo `supabase db push` z lokalnie zainstalowanym Supabase
    CLI) — `0001_init_schema.sql` → `0002_rls_policies.sql` →
    `0003_pairing.sql` → `0004_realtime.sql` → `0005_tasks.sql` →
-   `0006_tasks_partner_visibility.sql`, w tej kolejności.
+   `0006_tasks_partner_visibility.sql` →
+   `0007_calendar_exports_bucket.sql`, w tej kolejności. Ostatnia zakłada
+   bucket Storage `calendar-exports` — jeśli w Twoim projekcie Storage jest
+   wyłączony, włącz go najpierw w panelu Supabase.
 3. Skopiuj `.env.local.example` do `.env.local` i wklej `Project URL` oraz
    `anon public` key ze Settings → API swojego projektu Supabase.
 
