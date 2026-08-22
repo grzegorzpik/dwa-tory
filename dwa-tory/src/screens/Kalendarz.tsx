@@ -332,7 +332,17 @@ interface PeriodViewProps {
   onDayClick: (dateKey: string) => void;
 }
 
-function DayBar({ dateKey, view, currentUser, partner, myVisible, partnerVisible }: Pick<PeriodViewProps, 'view' | 'currentUser' | 'partner' | 'myVisible' | 'partnerVisible'> & { dateKey: string }) {
+/**
+ * Pionowy pasek statusu w widoku tygodnia. Napędzany historią celu
+ * (colorForStatus/dayStatusFor) — dzień z samym zadaniem, bez żadnego
+ * statusu celu, dostawał płaski szary pasek, bo zadania nie mają swojego
+ * "done/moved/skipped" (zgłoszenie UX: brak oznaczenia zadania kolorem w
+ * widoku tygodnia — mirror tej samej poprawki co wcześniej w MonthView).
+ * `hasTask` podmienia szary pasek na przydymiony gold; widok Wspólny bez
+ * zmian z tego samego powodu co w MonthView (gradient dwóch osób już
+ * czytelny).
+ */
+function DayBar({ dateKey, view, currentUser, partner, myVisible, partnerVisible, hasTask }: Pick<PeriodViewProps, 'view' | 'currentUser' | 'partner' | 'myVisible' | 'partnerVisible'> & { dateKey: string; hasTask: boolean }) {
   if (view === 'both' && partner) {
     const top = colorForStatus(dayStatusFor(myVisible, dateKey), currentUser.color);
     const bottom = colorForStatus(dayStatusFor(partnerVisible, dateKey), partner.color);
@@ -340,7 +350,8 @@ function DayBar({ dateKey, view, currentUser, partner, myVisible, partnerVisible
   }
   const person = view === 'partner' && partner ? partner : currentUser;
   const visible = view === 'partner' ? partnerVisible : myVisible;
-  const color = colorForStatus(dayStatusFor(visible, dateKey), person.color);
+  const statusColor = colorForStatus(dayStatusFor(visible, dateKey), person.color);
+  const color = hasTask && statusColor === C.surface2 ? `${C.gold}88` : statusColor;
   return <div className="rounded-full" style={{ width: 5, alignSelf: 'stretch', background: color }} />;
 }
 
@@ -369,7 +380,7 @@ function WeekView({ anchor, onAnchorChange, view, currentUser, partner, myVisibl
               className="rounded-xl px-3 py-2 flex items-center gap-3 cursor-pointer text-left border-0"
               style={{ background: C.surface, border: `1px solid ${isToday ? C.text : C.line}` }}
             >
-              <DayBar dateKey={dateKey} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} />
+              <DayBar dateKey={dateKey} view={view} currentUser={currentUser} partner={partner} myVisible={myVisible} partnerVisible={partnerVisible} hasTask={dayTasks.length > 0} />
               <div className="w-9 shrink-0">
                 <div className="font-body text-[9px]" style={{ color: C.muted }}>{DAY_LABELS[i]}</div>
                 <div className="font-display text-sm" style={{ color: C.text }}>{d.day}</div>

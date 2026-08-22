@@ -98,7 +98,15 @@ obramowanie (`hasNotableEntry`) nie czytało się jako "wyróżnienie
 kolorem" w widoku miesiąca (zgłoszenie UX). W widoku Mój/Wiola taki dzień
 dostaje teraz przydymione złote tło zamiast szarego; w widoku Wspólny
 zostaje bez zmian (gradient dwóch osób już jest wystarczająco czytelny,
-dodatkowy kolor tylko za zadanie by go zaszumił).
+dodatkowy kolor tylko za zadanie by go zaszumił). Ta sama poprawka
+dotyczyła tylko widoku miesiąca — pionowy pasek statusu w widoku
+tygodnia (`DayBar`, domyślny widok appki: `defaultCalendarPeriod:
+'week'`) nadal był napędzany wyłącznie historią celu, więc dzień z samym
+zadaniem miał płaski szary pasek bez żadnego koloru (kolejne zgłoszenie
+UX — łatwo przeoczone, bo widok tygodnia to domyślny ekran, a poprzednia
+poprawka dotyczyła tylko widoku miesiąca). `hasTask` podmienia teraz i
+tam szary pasek na przydymiony gold, tym samym warunkiem co w
+`MonthView`.
 
 **Uwaga architektoniczna (klawiatura na iOS):** dotknięcie dowolnego pola
 tekstowego w Safari na iOS powodowało widoczne "przybliżenie" ekranu
