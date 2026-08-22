@@ -4,7 +4,6 @@
 
 import { useState } from 'react';
 import { Check, CalendarClock, ChevronDown, ChevronRight, Info, Plus, X, Flame, Sparkles, Heart, Trash2, Undo2 } from 'lucide-react';
-import { Avatar } from '../components/Avatar';
 import { DayChip } from '../components/DayChip';
 import { GoalDetailModal } from '../components/GoalDetailModal';
 import { GoalDot } from '../components/GoalDot';
@@ -70,6 +69,8 @@ export function Dziennik({
 
   return (
     <div className="rise relative min-h-full">
+      <h1 className="font-head text-lg mb-3" style={{ color: C.text }}>Plan na dziś</h1>
+
       {milestoneCelebration && (
         <MilestoneOverlay
           goalTitle={milestoneCelebration.goalTitle}
@@ -97,7 +98,7 @@ export function Dziennik({
         }}
       >
         <div className="flex items-center justify-between mb-3 relative">
-          <Avatar person={currentUser} size={22} />
+          <span className="font-body text-[11px]" style={{ color: C.muted }}>Cele</span>
           <span
             className={`font-body text-[10px] flex items-center gap-0.5 shrink-0 ${justCompleted ? 'flame-burst' : ''}`}
             style={{ color: C.gold }}
@@ -183,7 +184,7 @@ export function Dziennik({
 
       {todayTasks.length > 0 && (
         <div className="rounded-2xl p-3 mb-3" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
-          <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Zadania na dziś</div>
+          <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Zadania</div>
           <div className="flex flex-col gap-1.5">
             {todayTasks.map((t) => (
               <TaskRow key={t.id} title={t.title} time={t.time} done={t.done} onToggle={() => toggleTaskDone(t.id)} onEdit={() => onEditTask(t)} onDelete={() => removeTask(t.id)} />

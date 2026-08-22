@@ -185,6 +185,13 @@ osobisty dziennik, współdzielenie dotyczy tylko Kalendarza).
   wizualny bez zmiany layoutu, ta sama sztuczka co przy przycisku
   zamykania w `GoalDetailModal`), a "przejście do edycji" przestało być
   osobną ikoną — cały wiersz zadania to teraz duży, oczywisty przycisk.
+- Dziennik: nagłówek karty celów pokazywał tylko avatar użytkownika i
+  serię (bez podpisu, więc "co to za karta" nie było oczywiste), a karta
+  zadań nazywała się "Zadania na dziś" mimo że pokazuje wyłącznie
+  dzisiejsze zadania — redundantne. Dodany tytuł ekranu "Plan na dziś"
+  pod nagłówkiem appki, avatar w karcie celów zastąpiony podpisem
+  "Cele" (avatar i tak jest dostępny w stałym nagłówku appki — nie znikł
+  z appki, tylko z tej jednej karty), karta zadań skrócona do "Zadania".
 
 ## Uruchomienie
 
