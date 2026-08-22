@@ -14,7 +14,7 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [x] 5. Kalendarz — Mój/Wiola/Wspólny, Tydzień/Miesiąc, Wspólna seria
 - [x] 6. Profil — statystyki, Twoja podróż, ustawienia, eksport danych
 - [x] 7. Backend — Supabase: schemat + RLS, logowanie (magic link/hasło), parowanie kont, sync celów (local-first + Realtime), wdrożenie na GitHub Pages
-- [x] 8. Powiadomienia — pełna logika panelu (chipy, limit 5 słów, odpowiedziane)
+- [x] 8. Powiadomienia — pełna logika panelu (chipy, limit 5 słów, odpowiedziane) + prawdziwy Web Push w tle (dokończone później, patrz "Push" niżej)
 - [x] 9. Onboarding + samouczek — imię/zdjęcie, status połączenia z partnerką, czas dla siebie, 4 karty funkcji, relaunch z Profilu
 - [x] 10. Integracja z kalendarzem telefonu — **wycofana** po czterech nieudanych próbach, patrz "Uwaga historyczna" niżej
 
@@ -23,13 +23,14 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 działa w prawdziwej appce (przeglądarka/PWA), nie w podglądzie artifact
 (pobrania zablokowane przez sandbox).
 
-**Co z backendu (krok 7) wciąż nie działa:** mechanizm powiadomień push
-(zapisujemy tylko preferencję w "Powiadomienia" — samo wysyłanie push
-wymaga VAPID + service workera + czegoś, co realnie je wyśle, np. Supabase
-Edge Function na triggerze bazy; nie zbudowane). Przełącznik "Dźwięk" obok
-niego jest za to od audytu UI/UX realny — patrz "Naprawione po audycie —
-dźwięk powiadomień" niżej — ale działa tylko przy otwartej appce, z tego
-samego powodu (brak prawdziwego push w tle).
+**Push (dokończenie kroku 8):** przełącznik "Push" w Profilu wysyła teraz
+realne powiadomienia systemowe, nawet gdy appka jest zamknięta/w tle —
+patrz sekcja "Push" niżej po instrukcji uruchomienia (VAPID, Edge Function,
+Database Webhook — wymaga jednorazowej ręcznej konfiguracji w Twoim
+projekcie Supabase, tak jak migracje). Przełącznik "Dźwięk" obok niego
+(patrz "Naprawione po audycie — dźwięk powiadomień" niżej) działa tylko
+przy otwartej appce z żywym Realtime — to inny mechanizm niż Push, celowo
+nie scalony w jeden.
 
 Panel "Powiadomienia" (co partnerka zrobiła + odpowiedzi z limitem 5 słów)
 jest już realnie zsynchronizowany z tabelą `notifications`
@@ -277,14 +278,18 @@ backendu).
    `0003_pairing.sql` → `0004_realtime.sql` → `0005_tasks.sql` →
    `0006_tasks_partner_visibility.sql` →
    `0007_calendar_exports_bucket.sql` →
-   `0008_remove_calendar_sync.sql`, w tej kolejności. `0007` zakłada
-   bucket Storage `calendar-exports`, `0008` go od razu kasuje wraz z
-   kolumną `sync_to_phone_calendar` — wycofana integracja z kalendarzem
-   telefonu, patrz "Uwaga historyczna" wyżej. Migracje trzymają się w
-   kolejności, w jakiej faktycznie powstawały, zamiast przepisywać już
-   zaaplikowane pliki.
+   `0008_remove_calendar_sync.sql` → `0009_push_subscriptions.sql`, w tej
+   kolejności. `0007` zakłada bucket Storage `calendar-exports`, `0008` go
+   od razu kasuje wraz z kolumną `sync_to_phone_calendar` — wycofana
+   integracja z kalendarzem telefonu, patrz "Uwaga historyczna" wyżej.
+   `0009` zakłada `push_subscriptions` — patrz sekcja "Push" niżej, dodatkowa
+   konfiguracja poza samą migracją. Migracje trzymają się w kolejności, w
+   jakiej faktycznie powstawały, zamiast przepisywać już zaaplikowane pliki.
 3. Skopiuj `.env.local.example` do `.env.local` i wklej `Project URL` oraz
-   `anon public` key ze Settings → API swojego projektu Supabase.
+   `anon public` key ze Settings → API swojego projektu Supabase. Klucz
+   `VITE_VAPID_PUBLIC_KEY` (Push) jest opcjonalny — bez niego appka działa
+   normalnie, przełącznik "Push" w Profilu jest po prostu wyszarzony jako
+   niewspierany, patrz sekcja "Push".
 
 ```bash
 npm install
@@ -299,6 +304,64 @@ jako **sekretów repo** (Settings → Secrets and variables → Actions):
 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — klucz `anon` jest publiczny
 z założenia (bezpieczny w buncie frontendu), rzeczywiste bezpieczeństwo
 danych daje RLS w bazie (`0002_rls_policies.sql`), nie ukrycie klucza.
+
+**Uwaga:** ten plik odwołuje się do `.github/workflows/deploy.yml`, ale w
+tym repo (`grzegorzpik/dwa-tory`) taki plik faktycznie nie istnieje (brak
+`.github/workflows/` w ogóle, sprawdzone `git log` — nigdy nie był
+commitowany). Wdrożenie na GitHub Pages jest więc dziś w praktyce ręczne
+(`npm run build` + wrzucenie `dist/` np. przez `gh-pages` albo ręczny push
+na branch `gh-pages`), nie automatyczne przy każdym pushu — do zweryfikowania
+i ewentualnego dodania tego workflow jako osobne zadanie, nie część tej
+poprawki (Push).
+
+## Push (dokończenie kroku 8 — prawdziwe powiadomienia w tle)
+
+Przełącznik "Push" w Profilu → Powiadomienia subskrybuje przeglądarkę do
+Web Push i zapisuje subskrypcję w tabeli `push_subscriptions`
+(`0009_push_subscriptions.sql`). Wysyłką zajmuje się Edge Function
+`supabase/functions/send-push`, wywoływana Database Webhookiem za każdym
+razem, gdy coś wpada do `notifications` (czyli dokładnie te same dwa
+zdarzenia co dziś: kamień milowy i przesunięcie zadania/celu — patrz wyżej).
+Wymaga to jednorazowej konfiguracji poza samym kodem appki:
+
+1. **Wygeneruj parę kluczy VAPID** (raz, dla Twojego projektu):
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+   Klucz **publiczny** wklej do `.env.local` jako `VITE_VAPID_PUBLIC_KEY`
+   (i jako sekret budowania w miejscu, gdzie budujesz appkę produkcyjnie).
+   Klucz **prywatny** nigdy nie trafia do repo ani do frontendu — tylko do
+   sekretów Edge Function (krok 3).
+2. **Zainstaluj Supabase CLI** (jeśli jeszcze nie masz) i zaloguj się:
+   `npx supabase login`, potem `npx supabase link --project-ref <twoj-ref>`
+   (ref widoczny w Settings → General panelu Supabase).
+3. **Wdróż funkcję i ustaw jej sekrety:**
+   ```bash
+   npx supabase functions deploy send-push
+   npx supabase secrets set VAPID_PUBLIC_KEY=<klucz publiczny>
+   npx supabase secrets set VAPID_PRIVATE_KEY=<klucz prywatny>
+   npx supabase secrets set VAPID_SUBJECT=mailto:twoj@email.com
+   ```
+   `SUPABASE_URL` i `SUPABASE_SERVICE_ROLE_KEY` nie trzeba ustawiać —
+   każda Edge Function dostaje je automatycznie od runtime'u.
+4. **Podepnij Database Webhook** (Dashboard → Database → Webhooks → Create
+   a new hook): tabela `notifications`, zdarzenie `INSERT`, typ "Supabase
+   Edge Functions", wskaż funkcję `send-push`. Celowo przez UI Dashboardu,
+   nie przez SQL w migracji — inaczej URL/autoryzacja konkretnego projektu
+   musiałyby trafić do repo.
+5. Odpal migrację `0009_push_subscriptions.sql` (jak każdą inną, patrz
+   wyżej) i dodaj `VITE_VAPID_PUBLIC_KEY` do `.env.local`.
+
+**Ograniczenie platformy (iPhone, bez obejścia — ta sama kategoria co
+wycofana integracja z kalendarzem):** Web Push na iOS działa WYŁĄCZNIE w
+appce dodanej do ekranu głównego (standalone), od iOS 16.4. W zwykłej
+karcie Safari `'PushManager' in window` jest `false` — Profil wykrywa to
+przez `isPushSupported()` (`src/lib/push.ts`) i po prostu wyszarza
+przełącznik z wyjaśnieniem, zamiast pokazywać coś, co wygląda na działające,
+a nic nie robi. Nawet w appce zainstalowanej system (iOS/Android) może
+oszczędnościowo ograniczyć dostarczanie w tle — to poza kontrolą appki,
+stąd notka pod przełącznikami "Push i dźwięk działają tylko wtedy, gdy
+przeglądarka/appka pozwoli je dostarczyć w tle".
 
 ## Struktura
 
@@ -316,8 +379,12 @@ danych daje RLS w bazie (`0002_rls_policies.sql`), nie ukrycie klucza.
 - `src/lib/pairing.ts` — generowanie/wymiana kodu parowania kont
 - `src/lib/goalsSync.ts` — sync celów z Supabase (local-first + Realtime)
 - `src/lib/tasksSync.ts` — sync "Szybkich zadań" z Supabase (local-first + Realtime dla widoku partnerki, jak cele)
+- `src/lib/sound.ts` — syntezowany dźwięk powiadomienia (Web Audio, tylko przy otwartej appce)
+- `src/lib/push.ts` — subskrypcja/rezygnacja z Web Push (prawdziwe powiadomienia w tle)
+- `src/sw.ts` — własny service worker (injectManifest) — precache + obsługa zdarzeń `push`/`notificationclick`
 - `src/store/AuthContext.tsx` — sesja Supabase Auth (magic link/hasło)
 - `supabase/migrations/` — schemat bazy + RLS + parowanie + Realtime, w kolejności aplikowania
+- `supabase/functions/send-push/` — Edge Function wysyłająca Web Push (wyzwalana Database Webhookiem)
 - `src/store/AppDataContext.tsx` — stan aplikacji + mutacje z zapisem lokalnym
 - `src/screens/` — ekrany per zakładka
 - `src/components/` — komponenty współdzielone między ekranami

@@ -1,7 +1,17 @@
 import { C } from '../theme';
 
 /** Wspólny przełącznik on/off — Kreator (widoczność/sync) i Profil (ustawienia). */
-export function ToggleSwitch({ checked, onChange, color }: { checked: boolean; onChange: (v: boolean) => void; color?: string }) {
+export function ToggleSwitch({
+  checked,
+  onChange,
+  color,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  color?: string;
+  disabled?: boolean;
+}) {
   const accent = color ?? C.gold;
   return (
     // Sam wizualny tor jest 36×22 (celowo mały, zgodny z resztą appki), ale
@@ -11,9 +21,18 @@ export function ToggleSwitch({ checked, onChange, color }: { checked: boolean; o
     <button
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="relative rounded-full border-0 cursor-pointer shrink-0 flex items-center"
-      style={{ width: 36 + 16, height: 44, margin: '-11px -8px', padding: '0 8px', background: 'transparent' }}
+      className="relative rounded-full border-0 shrink-0 flex items-center"
+      style={{
+        width: 36 + 16,
+        height: 44,
+        margin: '-11px -8px',
+        padding: '0 8px',
+        background: 'transparent',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
+      }}
     >
       <span className="relative rounded-full" style={{ width: 36, height: 22, background: checked ? accent : C.line, padding: 2, display: 'block' }}>
         <span

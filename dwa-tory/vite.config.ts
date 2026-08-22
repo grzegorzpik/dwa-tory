@@ -17,6 +17,14 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png'],
+      // injectManifest zamiast domyślnego generateSW — Push API (krok 8,
+      // dokończenie) wymaga własnych event listenerów w service workerze
+      // ('push', 'notificationclick'), których generateSW nie obsługuje.
+      // Własny SW: src/sw.ts (precacheAndRoute + te same trasy cache'owania
+      // fontów co niżej w `workbox`, przeniesione tam 1:1, plus obsługa push).
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       manifest: {
         id: base,
         name: 'Dwa Tory',
@@ -35,28 +43,11 @@ export default defineConfig({
           { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      // Praca offline: dane aplikacji żyją w IndexedDB, więc powłoka
+      // (HTML/JS/CSS) wystarczy zserwować z cache, żeby appka wystartowała
+      // bez sieci — precache'owanie tego manifestu robi src/sw.ts.
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
-        // Praca offline: dane aplikacji żyją w IndexedDB, więc powłoka
-        // (HTML/JS/CSS) wystarczy zserwować z cache, żeby appka wystartowała bez sieci.
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-stylesheets',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-        ],
       },
       devOptions: {
         enabled: true,

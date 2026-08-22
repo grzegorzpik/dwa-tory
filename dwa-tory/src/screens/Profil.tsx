@@ -2,7 +2,7 @@
 // liczonym postępem), Ustawienia (jeden wzorzec rozwijanych pozycji),
 // eksport danych (domyka lukę ze spec §7).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Bell,
   Camera,
@@ -26,6 +26,7 @@ import { buildExportPayload, downloadJson } from '../lib/exportData';
 import { milestonesFor } from '../lib/goals';
 import { cropImageToDataUrl } from '../lib/photo';
 import { CODE_TTL_MINUTES, createInviteCode, redeemInviteCode } from '../lib/pairing';
+import { isPushSupported, subscribeToPush, unsubscribeFromPush } from '../lib/push';
 import { supabase } from '../lib/supabaseClient';
 import { useAppData } from '../store/AppDataContext';
 import { useAuth } from '../store/AuthContext';
@@ -51,6 +52,39 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
   const [newPassword, setNewPassword] = useState('');
   const [settingPassword, setSettingPassword] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState('');
+  const pushSupported = isPushSupported();
+
+  // Odświeża subskrypcję przy starcie appki (raz), gdyby przeglądarka ją po
+  // cichu zgubiła (np. po dłuższej przerwie) mimo że ustawienie zostało
+  // zapisane jako włączone — subscribeToPush jest idempotentny (reużywa
+  // istniejącej subskrypcji), więc bezpieczny do wywołania "na wszelki wypadek".
+  const didResyncPush = useRef(false);
+  useEffect(() => {
+    if (didResyncPush.current) return;
+    didResyncPush.current = true;
+    if (settings.pushEnabled && pushSupported && Notification.permission === 'granted') {
+      subscribeToPush(currentUser.id).catch((e) => console.error('Nie udało się odświeżyć subskrypcji push', e));
+    }
+  }, [settings.pushEnabled, pushSupported, currentUser.id]);
+
+  const handlePushToggle = async (v: boolean) => {
+    setPushBusy(true);
+    setPushError('');
+    try {
+      if (v) {
+        await subscribeToPush(currentUser.id);
+      } else {
+        await unsubscribeFromPush();
+      }
+      updateSettings({ pushEnabled: v });
+    } catch (e) {
+      setPushError(e instanceof Error ? e.message : 'Nie udało się zmienić ustawienia powiadomień push.');
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const setPassword = async () => {
     if (newPassword.length < 6) return;
@@ -158,16 +192,28 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
         <div className="flex flex-col gap-2">
           <SettingsRow icon={Bell} title="Powiadomienia" expanded={expanded.has('notifications')} onToggle={() => toggleRow('notifications')}>
             <div className="flex flex-col gap-2.5">
-              <label className="flex items-center justify-between cursor-pointer">
+              <label className="flex items-center justify-between" style={{ opacity: pushSupported ? 1 : 0.5 }}>
                 <span className="font-body text-[11px]" style={{ color: C.text }}>Push</span>
-                <ToggleSwitch checked={settings.pushEnabled} onChange={(v) => updateSettings({ pushEnabled: v })} />
+                <ToggleSwitch checked={settings.pushEnabled} onChange={handlePushToggle} disabled={!pushSupported || pushBusy} />
               </label>
+              {!pushSupported && (
+                <div className="font-body text-[9px]" style={{ color: C.muted }}>
+                  Na iPhonie: dodaj appkę do ekranu głównego (Udostępnij → Dodaj do ekranu początkowego) — Push działa tylko
+                  w tak zainstalowanej appce, od iOS 16.4.
+                </div>
+              )}
+              {pushError && (
+                <div className="font-body text-[9px]" style={{ color: C.over }}>
+                  {pushError}
+                </div>
+              )}
               <label className="flex items-center justify-between cursor-pointer">
                 <span className="font-body text-[11px]" style={{ color: C.text }}>Dźwięk</span>
                 <ToggleSwitch checked={settings.soundEnabled} onChange={(v) => updateSettings({ soundEnabled: v })} />
               </label>
               <div className="font-body text-[9px]" style={{ color: C.muted }}>
-                Sam mechanizm powiadomień push jeszcze nie działa — na razie zapisujemy tylko Twoją preferencję.
+                Push i dźwięk działają tylko wtedy, gdy przeglądarka/appka pozwoli je dostarczyć w tle — system może to
+                ograniczyć (oszczędzanie baterii, wymuszone zamknięcie appki).
               </div>
             </div>
           </SettingsRow>
