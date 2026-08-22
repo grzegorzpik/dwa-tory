@@ -73,6 +73,8 @@ interface AppDataValue {
   updateProfile: (patch: Partial<Pick<Person, 'photo' | 'name'>>) => void;
   notifications: AppNotification[];
   sendReply: (notificationId: string, text: string) => void;
+  /** Wysyła partnerce sygnał "biorę chwilę dla siebie" (spec §5.1/§5.3) — jednorazowe powiadomienie, jak przy kamieniu milowym, bez trwałego stanu do zsynchronizowania. */
+  sendSelfTimeSignal: (duration: string) => void;
 }
 
 const AppDataContext = createContext<AppDataValue | null>(null);
@@ -479,6 +481,26 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     [goals, persistGoal, pairId, userId],
   );
 
+  /**
+   * "Czas dla siebie" (spec §5.1/§5.3) — wcześniej to był czysty lokalny stan
+   * ekranu, mimo że onboarding wprost obiecuje "Możecie dawać sobie znać...
+   * tylko krótki sygnał" partnerce. Naprawione: wysyła TEN SAM rodzaj
+   * powiadomienia co kamień milowy/przesunięcie (pushNotification), bez
+   * trwałego statusu "aktywny do X" do synchronizowania — spec mówi o
+   * jednorazowym sygnale, nie o żywym wskaźniku. Wysyłane tylko przy
+   * ROZPOCZĘCIU (nie przy "zakończ") — jeden sygnał wystarcza, appka nie ma
+   * być komunikatorem (spec §5.8).
+   */
+  const sendSelfTimeSignal = useCallback(
+    (duration: string) => {
+      if (!pairId) return;
+      void pushNotification(pairId, userId, `bierze chwilę dla siebie (${duration})`).catch((e) =>
+        console.error('Nie udało się wysłać sygnału "Czas dla siebie"', e),
+      );
+    },
+    [pairId, userId],
+  );
+
   const resolveDoubleUp = useCallback(
     (goalId: string) => {
       setGoals((prev) =>
@@ -618,6 +640,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     updateProfile,
     notifications,
     sendReply,
+    sendSelfTimeSignal,
   };
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;

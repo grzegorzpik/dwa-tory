@@ -220,21 +220,20 @@ dotykowych i dostępności. Naprawione:
   pominąć reszty. Dodany "Pomiń resztę samouczka" widoczny podczas
   każdej z 4 kart.
 
-**Znalezione, ale NIE naprawione — wymaga decyzji:** "Czas dla siebie"
-w Dzienniku (chipy 1h/2h/Wieczór) to czysty lokalny stan komponentu
-(`useState` w `Dziennik.tsx`) — nigdzie nie zapisywany, nie wysyłany do
-partnerki, znika po odświeżeniu strony. Tekst w Onboardingu (krok
-"Czas dla siebie") obiecuje jednak: *"Możecie dawać sobie znać, gdy
-któreś z Was bierze chwilę tylko dla siebie... tylko krótki sygnał"* —
-czyli że PARTNERKA się dowie. To się nigdy nie działo, od kiedy ta
-funkcja powstała (krok 9 tego wątku) — ani w danych demo, ani po
-backendzie. Naprawienie tego to nie kosmetyka, tylko realna funkcja:
-albo (a) spiąć to z tym samym mechanizmem co powiadomienia o kamieniu
-milowym/przesunięciu (`pushNotification` w `AppDataContext`), żeby
-sygnał faktycznie trafiał do partnerki, albo (b) zmienić tekst w
-Onboardingu, żeby nie obiecywał czegoś, czego appka nie robi. Zostawione
-do decyzji użytkownika zamiast zgadywania, które z dwojga jest
-zamierzone.
+**Naprawione po audycie (na wyraźną prośbę użytkownika — opcja "dorobić
+realną funkcję"):** "Czas dla siebie" w Dzienniku (chipy 1h/2h/Wieczór)
+był czystym lokalnym stanem komponentu — nigdzie nie zapisywany, nie
+wysyłany do partnerki, znikał po odświeżeniu strony, mimo że tekst w
+Onboardingu wprost obiecuje *"Możecie dawać sobie znać, gdy któreś z
+Was bierze chwilę tylko dla siebie... tylko krótki sygnał"*. Naprawione
+nową akcją `sendSelfTimeSignal()` w `AppDataContext` — wysyła DOKŁADNIE
+ten sam rodzaj powiadomienia co kamień milowy/przesunięcie
+(`pushNotification`, ten sam Realtime + panel Powiadomień), tylko przy
+ROZPOCZĘCIU (kliknięcie 1h/2h/Wieczór), nie przy "zakończ" — spec mówi o
+jednorazowym sygnale, nie o żywym wskaźniku "trwa do X", więc świadomie
+bez trwałego statusu do synchronizowania między urządzeniami (to by
+wymagało dużo więcej niż "krótki sygnał": zapisu w bazie, obsługi
+wygaśnięcia, itd. — poza tym, co spec faktycznie opisuje).
 
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż

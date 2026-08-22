@@ -41,6 +41,7 @@ export function Dziennik({
     resolveDoubleUp,
     resolveDrop,
     settings,
+    sendSelfTimeSignal,
   } = useAppData();
 
   const todayTasks = tasks.filter((t) => t.date === ymdKey(today()));
@@ -169,7 +170,10 @@ export function Dziennik({
                 {['1h', '2h', 'Wieczór'].map((d) => (
                   <button
                     key={d}
-                    onClick={() => setSelfTimeActive(d)}
+                    onClick={() => {
+                      setSelfTimeActive(d);
+                      sendSelfTimeSignal(d);
+                    }}
                     className="font-body text-[10px] px-2 py-1 rounded-full bg-transparent cursor-pointer"
                     style={{ border: `1px solid ${C.line}`, color: C.muted }}
                   >
