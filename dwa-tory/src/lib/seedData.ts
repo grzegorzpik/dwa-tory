@@ -59,7 +59,6 @@ export function seedGoals(): Goal[] {
     instance: { curr: { status: 'plan', note: '' }, next: { status: 'plan', double: false } },
     rescheduleCount: 1,
     visibleToPartner: true,
-    syncToPhoneCalendar: false,
     history: seedHistory(t, 12, (d) => (d === 6 ? 'moved' : 'done')),
   };
 
@@ -78,7 +77,6 @@ export function seedGoals(): Goal[] {
     instance: { curr: { status: 'plan', note: '' }, next: { status: 'plan', double: false } },
     rescheduleCount: 0,
     visibleToPartner: true,
-    syncToPhoneCalendar: false,
     history: seedHistory(t, 12, () => 'done'),
   };
 
@@ -98,7 +96,6 @@ export function seedGoals(): Goal[] {
     instance: { curr: { status: 'plan', note: '' }, next: { status: 'plan', double: false } },
     rescheduleCount: 0,
     visibleToPartner: true,
-    syncToPhoneCalendar: false,
     history: seedHistory(t, 14, (d) => ([2, 4, 7, 9, 11, 14].includes(d) ? 'done' : undefined)),
   };
 
@@ -123,7 +120,6 @@ export function seedGoals(): Goal[] {
     instance: { curr: { status: 'plan', note: '' }, next: { status: 'plan', double: false } },
     rescheduleCount: 2,
     visibleToPartner: true,
-    syncToPhoneCalendar: false,
     history: seedHistory(t, 15, (d) => ([1, 8, 15].includes(d) ? 'done' : undefined)),
   };
   excelCourse.manualMilestoneDone = {

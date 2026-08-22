@@ -5,12 +5,11 @@
 // wieloetapowy kreator tylko po to, żeby zobaczyć postęp.
 
 import { useState, type ReactNode } from 'react';
-import { CalendarPlus, Pencil, Trash2, Users, CalendarSync, X } from 'lucide-react';
+import { Pencil, Trash2, Users, X } from 'lucide-react';
 import { DayChip } from './DayChip';
 import { GoalDot } from './GoalDot';
 import { MiniTrack } from './MiniTrack';
 import { milestonesFor, weekProgressFor } from '../lib/goals';
-import { shareOrOpenIcsForGoal } from '../lib/ics';
 import { useAppData } from '../store/AppDataContext';
 import { C, TYPE_COLOR } from '../theme';
 import type { Goal } from '../types';
@@ -111,23 +110,9 @@ export function GoalDetailModal({ goal, onClose, onEdit }: { goal: Goal; onClose
                 label="Widoczne dla partnerki"
                 value={goal.visibleToPartner ? 'Tak' : 'Nie'}
                 icon={<Users size={12} style={{ color: C.muted }} />}
-              />
-              <SettingRow
-                label="Sync z kalendarzem"
-                value={goal.syncToPhoneCalendar ? 'Tak' : 'Nie'}
-                icon={<CalendarSync size={12} style={{ color: C.muted }} />}
                 last
               />
             </div>
-            {goal.syncToPhoneCalendar && (
-              <button
-                onClick={() => shareOrOpenIcsForGoal(goal)}
-                className="mt-2 w-full font-body text-[11px] py-2.5 rounded-xl flex items-center justify-center gap-1.5 bg-transparent cursor-pointer"
-                style={{ border: `1px solid ${trackColor}`, color: trackColor, minHeight: 44 }}
-              >
-                <CalendarPlus size={13} /> Dodaj do Kalendarza (iPhone)
-              </button>
-            )}
           </div>
 
           {goal.reason && <div className="font-body text-[11px] italic" style={{ color: C.muted }}>„{goal.reason}”</div>}

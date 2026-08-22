@@ -16,14 +16,12 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [x] 7. Backend — Supabase: schemat + RLS, logowanie (magic link/hasło), parowanie kont, sync celów (local-first + Realtime), wdrożenie na GitHub Pages
 - [x] 8. Powiadomienia — pełna logika panelu (chipy, limit 5 słów, odpowiedziane)
 - [x] 9. Onboarding + samouczek — imię/zdjęcie, status połączenia z partnerką, czas dla siebie, 4 karty funkcji, relaunch z Profilu
-- [x] 10. Integracja z kalendarzem telefonu — eksport zdarzenia .ics per cel, celowo tylko pod iPhone/Safari
+- [x] 10. Integracja z kalendarzem telefonu — **wycofana** po czterech nieudanych próbach, patrz "Uwaga historyczna" niżej
 
 **Domknięta luka ze spec (§7, eksport/backup danych):** przycisk
 "Eksportuj dane" w Profilu zapisuje `{person, goals, settings}` do JSON —
 działa w prawdziwej appce (przeglądarka/PWA), nie w podglądzie artifact
-(pobrania zablokowane przez sandbox). To samo ograniczenie dotyczy linku
-"Dodaj do Kalendarza" z kroku 10 (`data:` URI) — działa na prawdziwym
-iPhonie w Safari, w podglądzie artifact nic nie zrobi.
+(pobrania zablokowane przez sandbox).
 
 **Co z backendu (krok 7) wciąż nie działa:** mechanizm powiadomień push
 (zapisujemy tylko preferencję w "Powiadomienia" — samo wysyłanie push
@@ -57,58 +55,33 @@ demo z etapów 1-10 tego wątku) został w repo, ale odkąd doszedł backend nic
 go już nie importuje — martwy kod, do usunięcia albo świadomego
 zachowania jako dane do lokalnego developmentu bez Supabase.
 
-**Uwaga architektoniczna (Integracja z kalendarzem telefonu):** apka celuje
-wyłącznie w iPhone'a (decyzja użytkownika), więc krok 10 nie próbuje być
-uniwersalny. Przeglądarka nie ma API do zapisu wprost w natywnym kalendarzu
-— to świadome ograniczenie bezpieczeństwa, którego żadna appka webowa nie
-omija. `src/lib/ics.ts` generuje zdarzenie iCalendar (RFC 5545) z regułą
-powtarzania dopasowaną do kadencji celu (codziennie/konkretne dni
-tygodnia/co miesiąc; „X razy w tygodniu” nie wskazuje konkretnych dni, więc
-dostaje cotygodniowe przypomnienie z zastrzeżeniem w opisie).
-
-Trzy nieudane podejścia po drodze, zapisane w komentarzu na górze
-`src/lib/ics.ts` żeby ich nie próbować ponownie: (1) link `data:text/calendar`
-bez atrybutu `download` — działa jako "otwórz ekran Dodaj do kalendarza" w
-zwykłej karcie Safari, ale appka dodana do ekranu głównego (standalone PWA,
-czyli docelowy sposób jej używania) renderuje się we własnym, bardziej
-ograniczonym WebView, gdzie ta sama nawigacja nic nie robi; (2) Web Share
-API z plikami — arkusz udostępniania się pokazuje, ale zweryfikowane na
-prawdziwym urządzeniu, że iOS nie rozpoznaje udostępnionego pliku jako
-zdarzenie kalendarza (niespójne mapowanie MIME/UTI dla .ics między
-wersjami iOS); (3) wymuszenie nawigacji do `data:` URI w Safari przez
-`<a target="_blank">` doklejony do DOM — na prawdziwym urządzeniu
-standalone PWA otworzyło to w oknie typu SFSafariViewController (nie w
-pełnym Safari.app), gdzie `data:` URI pokazał się jako pusta strona
-(widoczny tytuł karty "data:") zamiast ekranu "Dodaj do kalendarza".
-Wniosek: ta specjalna obsługa .ics przez iOS jest związana z prawdziwym
-żądaniem sieciowym z nagłówkiem `Content-Type: text/calendar`, nie z URI
-wpisanym wprost w przeglądarce (żadna odmiana `data:`/`blob:` tego nie
-daje). Obecne (czwarte) podejście: `shareOrOpenIcsForGoal()`/
-`shareOrOpenIcsForTask()` wrzucają wygenerowany plik do publicznego
-bucketu Supabase Storage `calendar-exports` (migracja
-`0007_calendar_exports_bucket.sql`, ścieżka `{ownerId}/{id}.ics`, RLS
-pilnuje że tylko właściciel może tam pisać) i otwierają jego prawdziwy
-adres `https://` — to zwykły request sieciowy z poprawnym nagłówkiem, jak
-link do zdarzenia w mailu. Upload jest asynchroniczny, ale okno MUSI się
-otworzyć synchronicznie w geście kliknięcia (Safari blokuje
-`window.open` z opóźnieniem) — otwieramy więc puste okno od razu i
-dopiero po skończonym uploadzie ustawiamy mu adres (`openThenNavigate()`
-w `ics.ts`, ten sam wzorzec co przy przekierowaniach do płatności).
-Konsekwencja: pliki .ics są odtąd publicznie dostępne pod nieodgadnalnym
-adresem (losowe UUID celu/zadania w ścieżce) — akceptowalne, bo treść to
-tylko tytuł/godzina zdarzenia, ta sama wrażliwość co zwykłe zaproszenie
-kalendarzowe wysłane mailem. Cel z włączonym „Sync z kalendarzem
-telefonu” (przełącznik w Kreatorze) od razu
-po zapisaniu (przy tworzeniu ALBO przy edycji, jeśli sync właśnie się
-włączył — nie przy każdym kolejnym zapisie) otwiera ten arkusz automatycznie,
-bez konieczności ponownego wchodzenia w podgląd celu; przycisk „Dodaj do
-Kalendarza” w podglądzie celu (Dziennik → dotknij nazwę celu) zostaje jako
-sposób na powtórzenie tego później. Zdarzenie startuje od
-dzisiaj (albo najbliższego pasującego dnia dla kadencji z konkretnymi
-dniami), nie od historycznej daty startu celu — apka nie przechowuje
-prawdziwej daty startu jako danych maszynowych, tylko etykietę do
-wyświetlenia, a odtwarzanie historii w kalendarzu telefonu i tak nie miałoby
-sensu (liczy się przypomnienie na przyszłość).
+**Uwaga historyczna (wycofana integracja z kalendarzem telefonu, dawny
+krok 10):** apka celowała wyłącznie w iPhone'a — cel/zadanie z włączonym
+"Sync z kalendarzem telefonu" miał od razu otwierać ekran "Dodaj do
+kalendarza". Cztery kolejne podejścia, każde zweryfikowane na prawdziwym
+urządzeniu i każde nieudane w appce zainstalowanej na ekranie głównym
+(czyli docelowym sposobie jej używania): (1) link `data:text/calendar`
+bez atrybutu `download` — działał w zwykłej karcie Safari, ale standalone
+PWA renderuje się we własnym, bardziej ograniczonym WebView, gdzie ta
+sama nawigacja nic nie robiła; (2) Web Share API z plikami — arkusz się
+pokazywał, ale iOS nie rozpoznawał udostępnionego pliku jako zdarzenie
+kalendarza; (3) wymuszona nawigacja do `data:` URI przez
+`<a target="_blank">` — standalone PWA otwierało to w oknie typu
+SFSafariViewController, gdzie `data:` URI renderował się jako pusta
+strona; (4) prawdziwy plik serwowany z publicznego bucketu Supabase
+Storage pod adresem `https://` (poprawny nagłówek `Content-Type:
+text/calendar`, dokładnie jak link do zdarzenia w mailu) — to jedyne
+podejście, które faktycznie DZIAŁAŁO w zwykłej karcie Safari, ale
+zainstalowana appka nadal otwierała je w tym samym ograniczonym oknie
+bez specjalnej obsługi .ics, więc efekt końcowy był identyczny: pusty
+ekran. Wniosek: to nie był problem z generowaniem czy serwowaniem pliku
+— to twarde ograniczenie iOS, które nie ma obejścia po stronie appki.
+Do tego samo wymuszanie okienka przy każdym zapisie celu/zadania z
+włączonym sync było uciążliwe UX-owo, niezależnie od tego czy akurat
+zadziałało. Decyzja: cała funkcja wycofana (migracja
+`0008_remove_calendar_sync.sql` kasuje bucket Storage z próby 4 i
+kolumnę `sync_to_phone_calendar`) zamiast dalej próbować obejść
+ograniczenie platformy, którego obejść się nie da.
 
 **Uwaga architektoniczna (Kalendarz):** apka wciąż nie ma silnika
 "przełączania dnia" — Dziennik działa na jednym żywym "dziś" bez
@@ -147,10 +120,8 @@ ale nigdy nie wróciliśmy do tego przy budowie kroku 10, więc zadanie po
 prostu znikało po zapisaniu. Naprawione dodaniem osobnego, równoległego
 modelu `Task` (`src/lib/tasksSync.ts`, tabela `tasks`, `0005_tasks.sql`),
 zapisywanego lokalnie (`db.ts`) i do Supabase jak cele. Zadanie jest
-widoczne w trzech miejscach: (1) natychmiast po zapisaniu (tylko przy
-TWORZENIU, nie przy każdej edycji) generuje i otwiera zdarzenie .ics jak
-cel z włączonym sync kalendarza; (2) sekcja "Zadania na dziś" w Dzienniku
-(tylko gdy są zadania na dziś); (3) Kalendarz — znacznik dnia, sekcja
+widoczne w dwóch miejscach: (1) sekcja "Zadania na dziś" w Dzienniku
+(tylko gdy są zadania na dziś); (2) Kalendarz — znacznik dnia, sekcja
 "Zadania" i lista w podglądzie dnia (`DayDetailModal`), z
 odhaczaniem/edycją/usuwaniem w miejscu. Dotknięcie wiersza zadania (nie
 mała ikonka — cały wiersz to przycisk, zgłoszenie UX niżej) otwiera ten
@@ -208,9 +179,13 @@ backendu).
    CLI) — `0001_init_schema.sql` → `0002_rls_policies.sql` →
    `0003_pairing.sql` → `0004_realtime.sql` → `0005_tasks.sql` →
    `0006_tasks_partner_visibility.sql` →
-   `0007_calendar_exports_bucket.sql`, w tej kolejności. Ostatnia zakłada
-   bucket Storage `calendar-exports` — jeśli w Twoim projekcie Storage jest
-   wyłączony, włącz go najpierw w panelu Supabase.
+   `0007_calendar_exports_bucket.sql` →
+   `0008_remove_calendar_sync.sql`, w tej kolejności. `0007` zakłada
+   bucket Storage `calendar-exports`, `0008` go od razu kasuje wraz z
+   kolumną `sync_to_phone_calendar` — wycofana integracja z kalendarzem
+   telefonu, patrz "Uwaga historyczna" wyżej. Migracje trzymają się w
+   kolejności, w jakiej faktycznie powstawały, zamiast przepisywać już
+   zaaplikowane pliki.
 3. Skopiuj `.env.local.example` do `.env.local` i wklej `Project URL` oraz
    `anon public` key ze Settings → API swojego projektu Supabase.
 
@@ -239,7 +214,6 @@ danych daje RLS w bazie (`0002_rls_policies.sql`), nie ukrycie klucza.
 - `src/lib/exportData.ts` — eksport danych użytkownika do JSON
 - `src/lib/notifications.ts` — limit słów, walidacja odpowiedzi, format czasu względnego
 - `src/lib/notificationsSync.ts` — sync panelu Powiadomień z Supabase (pull + Realtime)
-- `src/lib/ics.ts` — eksport celu jako zdarzenie iCalendar (krok 10, iPhone/Safari)
 - `src/lib/db.ts` — warstwa IndexedDB (lokalny cache/offline — Supabase jest źródłem prawdy, krok 7)
 - `src/lib/supabaseClient.ts` — jedyne miejsce importujące `@supabase/supabase-js`
 - `src/lib/pairing.ts` — generowanie/wymiana kodu parowania kont

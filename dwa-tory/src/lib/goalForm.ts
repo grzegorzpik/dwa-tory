@@ -43,7 +43,6 @@ export interface GoalFormState {
   taskTime: string;
 
   visibleToPartner: boolean;
-  syncToPhoneCalendar: boolean;
 }
 
 export const emptyFormState = (): GoalFormState => ({
@@ -68,7 +67,6 @@ export const emptyFormState = (): GoalFormState => ({
   taskDay: null,
   taskTime: '',
   visibleToPartner: true,
-  syncToPhoneCalendar: false,
 });
 
 export const isTask = (f: GoalFormState) => f.kind === 'task';
@@ -226,7 +224,6 @@ export function formStateToGoal(f: GoalFormState, personId: string, existing?: G
     instance: existing?.instance ?? { curr: { status: 'plan', note: '' }, next: { status: 'plan', double: false } },
     rescheduleCount: existing?.rescheduleCount ?? 0,
     visibleToPartner: f.visibleToPartner,
-    syncToPhoneCalendar: f.syncToPhoneCalendar,
   };
 }
 
@@ -267,6 +264,5 @@ export function goalToFormState(g: Goal): GoalFormState {
     targetUnit: g.targetUnit ?? '',
     milestoneDates,
     visibleToPartner: g.visibleToPartner,
-    syncToPhoneCalendar: g.syncToPhoneCalendar,
   };
 }

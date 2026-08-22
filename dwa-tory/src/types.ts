@@ -91,7 +91,6 @@ export interface Goal {
   instance: GoalInstance;
   rescheduleCount: number;
   visibleToPartner: boolean;
-  syncToPhoneCalendar: boolean;
   /**
    * Historia dni, zapisywana w momencie akcji (Zrobione/przesuń/odpuść) —
    * klucz YYYY-MM-DD, wartość = wynik tego dnia. "plan" nigdy tu nie trafia:

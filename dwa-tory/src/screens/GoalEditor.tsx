@@ -1,8 +1,7 @@
 // Kreator/Edytor celu — spec §5.5. Jeden komponent w dwóch trybach: nowy cel
 // (z FAB) i edycja (z karty celu w Cele). Pełne drzewo decyzyjne: typ →
 // charakter → kadencja/start/kotwica → wersja minimalna → (opcjonalnie)
-// kamienie milowe → podsumowanie z widocznością dla partnerki i sync z
-// kalendarzem telefonu.
+// kamienie milowe → podsumowanie z widocznością dla partnerki.
 
 import { useState } from 'react';
 import { ChevronLeft, Flag, Plus, Repeat, Shield, Target, X, Zap } from 'lucide-react';
@@ -29,7 +28,6 @@ import {
   type GoalFormState,
 } from '../lib/goalForm';
 import { DAY_LABELS, monthAbbr, today } from '../lib/calendarUtils';
-import { shareOrOpenIcsForGoal, shareOrOpenIcsForTask } from '../lib/ics';
 import { useAppData } from '../store/AppDataContext';
 import { C } from '../theme';
 import type { Goal, Task } from '../types';
@@ -74,33 +72,14 @@ export function GoalEditor({ goal, task, onClose }: { goal?: Goal; task?: Task; 
   const submit = () => {
     if (isTask(form)) {
       // Osobny model od Goal — zadanie nie ma kadencji ani śledzenia
-      // postępu, obu wymaga Goal (spec §4). Nowe zadanie od razu próbuje
-      // dodać się do kalendarza telefonu (krok 10) — bez przełącznika, jak
-      // przy Celu, bo to był pierwotny sens "szybkiego zadania": jednorazowa
-      // rzecz na konkretny dzień/godzinę. Wywołanie MUSI być synchroniczne
-      // (patrz lib/ics.ts) — nie awaitować niczego przed nim. Przy EDYCJI już
-      // istniejącego zadania celowo NIE re-triggerujemy arkusza kalendarza —
-      // ten sam wzorzec co przy Celu (syncJustEnabled niżej): nikt nie chce
-      // dostawać ponownego "Dodaj do kalendarza" za każdą drobną poprawkę.
+      // postępu, obu wymaga Goal (spec §4).
       const savedTask = formStateToTask(form, currentUser.id, task);
       saveTask(savedTask);
-      if (!task) shareOrOpenIcsForTask(savedTask);
       onClose();
       return;
     }
     const savedGoal = formStateToGoal(form, currentUser.id, goal);
     saveGoal(savedGoal);
-    // Sync z kalendarzem telefonu (krok 10) — jeśli WŁAŚNIE się włączył (nowy
-    // cel z sync=true, albo edycja z wyłączonego na włączony), pokaż arkusz
-    // "Dodaj do kalendarza" od razu, zamiast zostawiać to jako osobną
-    // czynność wymagającą ponownego wejścia w podgląd celu. Bez re-triggera
-    // przy zwykłym zapisie edycji z sync już wcześniej włączonym — nie ma
-    // co nagabywać przy każdej drobnej poprawce. Wywołanie MUSI być
-    // synchroniczne (patrz lib/ics.ts) — nie awaitować niczego przed nim.
-    const syncJustEnabled = savedGoal.syncToPhoneCalendar && !goal?.syncToPhoneCalendar;
-    if (syncJustEnabled) {
-      shareOrOpenIcsForGoal(savedGoal);
-    }
     onClose();
   };
 
@@ -501,24 +480,11 @@ export function GoalEditor({ goal, task, onClose }: { goal?: Goal; task?: Task; 
                   {!isTask(form) && form.reason && <div className="font-body text-[10px] mt-1 italic" style={{ color: C.muted }}>„{form.reason}”</div>}
                 </div>
 
-                <div className="rounded-xl p-3 flex flex-col gap-2.5" style={{ background: C.surface2, border: `1px solid ${C.line}` }}>
+                <div className="rounded-xl p-3" style={{ background: C.surface2, border: `1px solid ${C.line}` }}>
                   <label className="flex items-center justify-between cursor-pointer">
                     <span className="font-body text-[11px]" style={{ color: C.text }}>Widoczne dla partnerki</span>
                     <ToggleSwitch checked={form.visibleToPartner} onChange={(v) => patch({ visibleToPartner: v })} color={trackColor} />
                   </label>
-                  {!isTask(form) && (
-                    <>
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span className="font-body text-[11px]" style={{ color: C.text }}>Sync z kalendarzem telefonu</span>
-                        <ToggleSwitch checked={form.syncToPhoneCalendar} onChange={(v) => patch({ syncToPhoneCalendar: v })} color={trackColor} />
-                      </label>
-                      {form.syncToPhoneCalendar && (
-                        <div className="font-body text-[9px]" style={{ color: C.muted }}>
-                          Po zapisaniu znajdziesz przycisk „Dodaj do Kalendarza” w podglądzie celu (Dziennik → dotknij nazwę celu).
-                        </div>
-                      )}
-                    </>
-                  )}
                 </div>
 
                 {!isTask(form) && (

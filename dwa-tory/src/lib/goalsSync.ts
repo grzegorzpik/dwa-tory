@@ -36,7 +36,6 @@ function goalToRow(goal: Goal, ownerId: string) {
     instance_next: goal.instance.next,
     reschedule_count: goal.rescheduleCount,
     visible_to_partner: goal.visibleToPartner,
-    sync_to_phone_calendar: goal.syncToPhoneCalendar,
     updated_at: goal.updatedAt ?? new Date().toISOString(),
   };
 }
@@ -104,7 +103,6 @@ interface GoalRow {
   instance_next: Goal['instance']['next'];
   reschedule_count: number;
   visible_to_partner: boolean;
-  sync_to_phone_calendar: boolean;
   updated_at: string;
 }
 
@@ -155,7 +153,6 @@ function rowToGoal(row: GoalRow, milestoneRows: MilestoneRow[], instanceRows: In
     instance: { curr: row.instance_curr, next: row.instance_next },
     rescheduleCount: row.reschedule_count,
     visibleToPartner: row.visible_to_partner,
-    syncToPhoneCalendar: row.sync_to_phone_calendar,
     history,
     updatedAt: row.updated_at,
   };
