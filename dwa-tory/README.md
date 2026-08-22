@@ -26,7 +26,10 @@ działa w prawdziwej appce (przeglądarka/PWA), nie w podglądzie artifact
 **Co z backendu (krok 7) wciąż nie działa:** mechanizm powiadomień push
 (zapisujemy tylko preferencję w "Powiadomienia" — samo wysyłanie push
 wymaga VAPID + service workera + czegoś, co realnie je wyśle, np. Supabase
-Edge Function na triggerze bazy; nie zbudowane).
+Edge Function na triggerze bazy; nie zbudowane). Przełącznik "Dźwięk" obok
+niego jest za to od audytu UI/UX realny — patrz "Naprawione po audycie —
+dźwięk powiadomień" niżej — ale działa tylko przy otwartej appce, z tego
+samego powodu (brak prawdziwego push w tle).
 
 Panel "Powiadomienia" (co partnerka zrobiła + odpowiedzi z limitem 5 słów)
 jest już realnie zsynchronizowany z tabelą `notifications`
@@ -234,6 +237,22 @@ jednorazowym sygnale, nie o żywym wskaźniku "trwa do X", więc świadomie
 bez trwałego statusu do synchronizowania między urządzeniami (to by
 wymagało dużo więcej niż "krótki sygnał": zapisu w bazie, obsługi
 wygaśnięcia, itd. — poza tym, co spec faktycznie opisuje).
+
+**Naprawione po audycie — dźwięk powiadomień ("Zrób tylko dźwięk teraz"):**
+przełącznik "Dźwięk" w Profil → Powiadomienia zapisywał tylko preferencję
+(`settings.soundEnabled`), bez żadnego realnego efektu — tak samo jak
+"Push" opisane wyżej. Naprawione: `src/lib/sound.ts` generuje na żywo
+krótki dwutonowy "ding" (Web Audio, żaden plik do pobrania), a
+`refreshNotifications` w `AppDataContext` woła go, gdy Realtime dostarczy
+NOWE powiadomienie partnerki (porównanie ID względem poprzedniego stanu w
+`useRef`, żeby nie zagrać przy pierwszym załadowaniu całej historii) i
+`soundEnabled` jest włączony. Ma twarde ograniczenie, którego nie da się
+obejść bez prawdziwego backendu push: gra WYŁĄCZNIE gdy appka jest otwarta
+i ma żywe połączenie Realtime — w tle/offline/zamknięta appka o niczym nie
+wie, więc dźwięku nie usłyszysz. To dokładnie ta sama granica, co przy
+"Push" — realne powiadomienia w tle wymagają VAPID + service workera +
+serwerowego triggera (nie zbudowane, poza zakresem tej poprawki: użytkownik
+świadomie wybrał "tylko dźwięk teraz", zostawiając Push jako preferencję).
 
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż

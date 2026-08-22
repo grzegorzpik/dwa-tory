@@ -23,6 +23,7 @@ import {
 import { pullGoalsForOwner, pushGoal, pushGoalDelete, pushGoalMilestones } from '../lib/goalsSync';
 import { pullNotifications, pushNotification, replyToNotification } from '../lib/notificationsSync';
 import { disconnectPair, fetchMyPairing } from '../lib/pairing';
+import { playNotificationSound } from '../lib/sound';
 import { supabase } from '../lib/supabaseClient';
 import { pullTasksForOwner, pushTask, pushTaskDelete } from '../lib/tasksSync';
 import { PERSON_COLOR } from '../theme';
@@ -188,6 +189,17 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   const [celebrateAllDone, setCelebrateAllDone] = useState(false);
   const [milestoneCelebration, setMilestoneCelebration] = useState<MilestoneCelebration | null>(null);
   const wasAllDone = useRef(false);
+  // `null` = jeszcze nie wczytano żadnych powiadomień (pierwszy refresh po
+  // zalogowaniu/sparowaniu) — dźwięk ma grać tylko dla NOWYCH powiadomień,
+  // nie dla całej istniejącej historii przy pierwszym załadowaniu.
+  const seenNotificationIds = useRef<Set<string> | null>(null);
+  // Ref zamiast bezpośrednio `settings.soundEnabled` w zależnościach
+  // useCallback — inaczej przełączenie preferencji w Profilu resubskrybowałoby
+  // kanał Realtime bez potrzeby.
+  const soundEnabledRef = useRef(settings.soundEnabled);
+  useEffect(() => {
+    soundEnabledRef.current = settings.soundEnabled;
+  }, [settings.soundEnabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -346,6 +358,13 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         // jako "nieodpowiedziane", a odpowiedź na własny wpis i tak odrzuci
         // RLS (notifications_update_reply_by_recipient: actor_id <> auth.uid()).
         const forMe = remote.filter((n) => n.actorId !== userId);
+        const currentIds = new Set(forMe.map((n) => n.id));
+        const previousIds = seenNotificationIds.current;
+        const hasNew = previousIds !== null && forMe.some((n) => !previousIds.has(n.id));
+        if (hasNew && soundEnabledRef.current) {
+          playNotificationSound();
+        }
+        seenNotificationIds.current = currentIds;
         setNotifications(forMe);
         await Promise.all(forMe.map((n) => db.putNotification(n)));
       } catch (e) {
