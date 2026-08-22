@@ -396,11 +396,19 @@ function MonthView({ anchor, onAnchorChange, view, currentUser, partner, myVisib
         renderDay={(d) => {
           const dateKey = ymdKey({ year: anchor.year, month: anchor.month, day: d });
           const isToday = dateKey === ymdKey(t);
-          const hasNotableEntry = milestonesByDay(dateKey).length > 0 || tasksByDay(dateKey).length > 0;
-          const bg =
+          const hasTask = tasksByDay(dateKey).length > 0;
+          const hasNotableEntry = milestonesByDay(dateKey).length > 0 || hasTask;
+          const statusBg =
             view === 'both' && partner
               ? `linear-gradient(to bottom, ${colorForStatus(dayStatusFor(myVisible, dateKey), currentUser.color)} 50%, ${colorForStatus(dayStatusFor(partnerVisible, dateKey), partner.color)} 50%)`
               : colorForStatus(dayStatusFor(view === 'partner' ? partnerVisible : myVisible, dateKey), (view === 'partner' && partner ? partner : currentUser).color);
+          // Zadanie bez odpowiadającego statusu celu dostawało płaskie, szare tło
+          // (colorForStatus zwraca C.surface2 dla "brak danych") — samo złote
+          // obramowanie (hasNotableEntry) nie czytało się jako "wyróżnienie
+          // kolorem" (zgłoszenie UX). W widoku Mój/Wiola podmieniamy wtedy tło na
+          // przydymiony gold; w widoku Wspólny zostawiamy gradient obu osób bez
+          // zmian — dodatkowy kolor tylko za to zaszumiłby.
+          const bg = hasTask && statusBg === C.surface2 ? `${C.gold}33` : statusBg;
           return (
             <button
               onClick={() => onDayClick(dateKey)}

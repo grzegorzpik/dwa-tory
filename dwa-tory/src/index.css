@@ -22,6 +22,21 @@ button {
 }
 
 /*
+ * iOS Safari sam dopasowuje (zoomuje) widok przy fokusie na polu, którego
+ * font-size jest mniejszy niż 16px — appka używa wszędzie 12-14px (spec §7,
+ * gęsty układ), więc każde pole tekstowe wywoływało ten "przybliżający się"
+ * efekt (zgłoszenie UX). 16px to jedyny udokumentowany sposób, żeby Safari
+ * tego nie robił — nie chodzi o UX, to twardy próg w silniku przeglądarki.
+ * `!important`, bo zwykły selektor typu ma niższą specyficzność niż klasy
+ * Tailwind (.text-xs/.text-sm) ustawiane inline w JSX.
+ */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+/*
  * Rama aplikacji. Na telefonie (poniżej 640px — czyli w praktyce zawsze na
  * realnym urządzeniu) karta WYPEŁNIA cały widoczny viewport, bez obwódki ani
  * zaokrągleń — przeglądarka/PWA sama jest "ramką", więc dekoracyjna karta

@@ -119,6 +119,25 @@ zapisywaną w momencie akcji mapę dzień→wynik. To wystarcza do dziś i
 wstecz; pełne, automatyczne przełączanie dnia zostawione jako świadomie
 odłożone follow-up.
 
+Dzień z zadaniem, ale bez żadnego statusu celu, dostawał płaskie szare
+tło (`colorForStatus` zwraca `C.surface2` dla "brak danych") — samo złote
+obramowanie (`hasNotableEntry`) nie czytało się jako "wyróżnienie
+kolorem" w widoku miesiąca (zgłoszenie UX). W widoku Mój/Wiola taki dzień
+dostaje teraz przydymione złote tło zamiast szarego; w widoku Wspólny
+zostaje bez zmian (gradient dwóch osób już jest wystarczająco czytelny,
+dodatkowy kolor tylko za zadanie by go zaszumił).
+
+**Uwaga architektoniczna (klawiatura na iOS):** dotknięcie dowolnego pola
+tekstowego w Safari na iOS powodowało widoczne "przybliżenie" ekranu
+(zgłoszenie UX) — to twardy próg silnika przeglądarki: Safari sam zooms
+in, gdy font-size fokusowanego pola jest mniejsze niż 16px, a appka
+używała wszędzie 12-14px (gęsty układ, spec §7). Naprawione globalną
+regułą w `index.css` (`input, textarea, select { font-size: 16px
+!important }`) — jedyny udokumentowany sposób, żeby to zablokować bez
+wyłączania pinch-zoom użytkownikowi (`user-scalable=no` w viewport też by
+to załatwiło, ale psuje dostępność dla osób słabowidzących — nie
+tknięte).
+
 **Uwaga architektoniczna (Szybkie zadanie):** w Kreatorze obok "Nawyk /
 Cel z terminem / Treść cykliczna" jest czwarta opcja — "Szybkie zadanie".
 Wcześniej ten branch kodu w `submit()` (`GoalEditor.tsx`) świadomie NIE
