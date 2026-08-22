@@ -40,12 +40,17 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
         zIndex: 30,
       }}
     >
+      {/* Widoczny uchwyt to cienki pasek 40×4px, ale sam obszar łapiący dotyk jest
+          dużo większy (padding, nie zmienia wyglądu) — 4px wysokości było za mało,
+          żeby trafić palcem w gest przeciągnięcia (zgłoszenie audytu UX). */}
       <div
-        className="w-10 h-1 rounded-full mx-auto mt-1 mb-3"
-        style={{ background: C.line, touchAction: 'none' }}
+        className="flex justify-center py-3 -mt-2 -mb-1"
+        style={{ touchAction: 'none' }}
         onTouchStart={onHandleTouchStart}
         onTouchEnd={onHandleTouchEnd}
-      />
+      >
+        <div className="w-10 h-1 rounded-full" style={{ background: C.line }} />
+      </div>
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-head text-lg" style={{ color: C.text }}>Powiadomienia</h2>
         <button onClick={onClose} className="flex items-center gap-1 font-body text-xs bg-transparent border-0 cursor-pointer" style={{ color: C.muted }}>

@@ -193,6 +193,57 @@ osobisty dziennik, współdzielenie dotyczy tylko Kalendarza).
   "Cele" (avatar i tak jest dostępny w stałym nagłówku appki — nie znikł
   z appki, tylko z tej jednej karty), karta zadań skrócona do "Zadania".
 
+**Pełny audyt UI/UX wszystkich ekranów (na prośbę użytkownika):**
+przegląd każdego ekranu i komponentu pod kątem spójności, celów
+dotykowych i dostępności. Naprawione:
+- `Cele.tsx`: karta celu była zwykłym `<div onClick>`, nie `<button>` —
+  jedyne klikalne "kafelki" w całej appce bez semantyki przycisku (bez
+  focusa z klawiatury, bez aktywacji Enter/Space). Zmienione na
+  `<button>`, spójnie z resztą appki (`GoalListRow`, `TaskRow` i inne).
+- `ToggleSwitch.tsx`: wizualny tor 36×22px był też całym obszarem
+  dotyku — używany wszędzie (Kreator, Profil), a mniejszy niż
+  jakikolwiek inny element dotykowy w appce. Podniesiony do ~44px przez
+  niewidoczny padding (ten sam trick co przy przyciskach zadania).
+- Kalendarz: przełącznik Tydzień/Miesiąc miał `minHeight: 28`, mimo że
+  przełącznik Mój/Wiola/Wspólny tuż nad nim ma 44 — ten sam rodzaj
+  kontrolki, różny cel dotykowy. Ujednolicone do 44.
+- `NotificationsPanel.tsx`: uchwyt do zamykania panelu przeciągnięciem
+  był wizualnie i dotykowo tym samym paskiem 40×4px — trudno trafić
+  palcem w gest. Obszar łapiący dotyk powiększony przez padding, sam
+  widoczny pasek bez zmian.
+- Profil: "Wyloguj" był schowany wewnątrz rozwijanej pozycji "Konto i
+  połączenie z partnerem" — trzeba było zgadnąć, że wylogowanie jest
+  tam, a nie np. w "O aplikacji". Wyciągnięty jako osobny, zawsze
+  widoczny przycisk na dole ekranu (obok "Eksportuj dane").
+- Onboarding: "Pomiń samouczek" istniało tylko na ekranie
+  wprowadzającym przed 4 kartami — raz w środku kart nie dało się już
+  pominąć reszty. Dodany "Pomiń resztę samouczka" widoczny podczas
+  każdej z 4 kart.
+
+**Znalezione, ale NIE naprawione — wymaga decyzji:** "Czas dla siebie"
+w Dzienniku (chipy 1h/2h/Wieczór) to czysty lokalny stan komponentu
+(`useState` w `Dziennik.tsx`) — nigdzie nie zapisywany, nie wysyłany do
+partnerki, znika po odświeżeniu strony. Tekst w Onboardingu (krok
+"Czas dla siebie") obiecuje jednak: *"Możecie dawać sobie znać, gdy
+któreś z Was bierze chwilę tylko dla siebie... tylko krótki sygnał"* —
+czyli że PARTNERKA się dowie. To się nigdy nie działo, od kiedy ta
+funkcja powstała (krok 9 tego wątku) — ani w danych demo, ani po
+backendzie. Naprawienie tego to nie kosmetyka, tylko realna funkcja:
+albo (a) spiąć to z tym samym mechanizmem co powiadomienia o kamieniu
+milowym/przesunięciu (`pushNotification` w `AppDataContext`), żeby
+sygnał faktycznie trafiał do partnerki, albo (b) zmienić tekst w
+Onboardingu, żeby nie obiecywał czegoś, czego appka nie robi. Zostawione
+do decyzji użytkownika zamiast zgadywania, które z dwojga jest
+zamierzone.
+
+**Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
+wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż
+44px obszar dotyku — świadomie nie ruszone w tym audycie, bo te chipy
+zawsze występują w gęstych rzędach po kilka naraz i podniesienie każdego
+do 44px zepsułoby układ (nachodzenie/zawijanie) bardziej, niż rozwiązało
+— to wymagałoby przeprojektowania układu, nie tylko rozmiaru pojedynczej
+kontrolki.
+
 ## Uruchomienie
 
 Appka wymaga prawdziwego projektu Supabase (backend, krok 7) — bez tego

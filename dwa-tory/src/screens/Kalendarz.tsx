@@ -157,8 +157,11 @@ export function Kalendarz({
           <button
             key={opt.id}
             onClick={() => setPeriod(opt.id)}
-            className="font-body text-[10px] px-2.5 py-1 rounded-full bg-transparent cursor-pointer"
-            style={{ border: `1px solid ${period === opt.id ? C.gold : C.line}`, color: period === opt.id ? C.gold : C.muted, minHeight: 28 }}
+            // minHeight podniesiony z 28 do 44 (spójnie z przełącznikiem Mój/Wiola/Wspólny
+            // wyżej) — ten sam cel dotykowy był mniejszy niż wszędzie indziej w appce
+            // (zgłoszenie audytu UX), mimo że robi dokładnie to samo (przełącza widok).
+            className="font-body text-[10px] px-2.5 py-1 rounded-full bg-transparent cursor-pointer flex items-center justify-center"
+            style={{ border: `1px solid ${period === opt.id ? C.gold : C.line}`, color: period === opt.id ? C.gold : C.muted, minHeight: 44 }}
           >
             {opt.label}
           </button>

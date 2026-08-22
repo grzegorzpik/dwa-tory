@@ -43,7 +43,7 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: () => void }) {
   const showSuggestion = goal.rescheduleCount >= RESCHEDULE_WARNING_THRESHOLD;
 
   return (
-    <div onClick={onClick} className="rounded-xl p-3 cursor-pointer flex items-start justify-between gap-2" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+    <button onClick={onClick} className="w-full rounded-xl p-3 cursor-pointer flex items-start justify-between gap-2 text-left border-0" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1.5">
           <GoalDot color={trackColor} character={goal.character} size={8} />
@@ -69,6 +69,6 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: () => void }) {
         )}
       </div>
       <ChevronRight size={15} style={{ color: C.muted }} className="shrink-0 mt-0.5" />
-    </div>
+    </button>
   );
 }

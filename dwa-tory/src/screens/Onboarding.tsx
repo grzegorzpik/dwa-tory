@@ -345,6 +345,18 @@ export function Onboarding() {
             {step === TOTAL_STEPS - 1 ? 'Zacznij' : step === 0 ? 'Zaczynamy' : 'Dalej'}
             {step < TOTAL_STEPS - 1 && <ChevronRight size={16} />}
           </button>
+          {/* "Pomiń samouczek" istniało tylko na ekranie wprowadzającym (step 4) —
+              raz w środku 4 kart samouczka (step 5+) nie dało się już pominąć reszty,
+              trzeba było przejść każdą kartę po kolei (zgłoszenie audytu UX). */}
+          {step >= 5 && step < TOTAL_STEPS - 1 && (
+            <button
+              onClick={() => setStep(TOTAL_STEPS - 1)}
+              className="w-full font-body text-[11px] mt-2 bg-transparent border-0 cursor-pointer"
+              style={{ color: C.muted, minHeight: 44 }}
+            >
+              Pomiń resztę samouczka
+            </button>
+          )}
         </div>
       )}
     </div>

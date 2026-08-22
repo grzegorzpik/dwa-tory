@@ -311,14 +311,6 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
                 </div>
               )}
             </div>
-
-            <button
-              onClick={signOut}
-              className="w-full font-body text-[11px] py-2 mt-2.5 rounded-lg bg-transparent cursor-pointer flex items-center justify-center gap-1.5"
-              style={{ border: `1px solid ${C.line}`, color: C.muted, minHeight: 44 }}
-            >
-              <LogOut size={13} /> Wyloguj
-            </button>
           </SettingsRow>
 
           <SettingsRow icon={Camera} title="Zdjęcie profilowe" expanded={expanded.has('photo')} onToggle={() => toggleRow('photo')}>
@@ -403,6 +395,17 @@ export function Profil({ onOpenTutorial }: { onOpenTutorial: () => void }) {
           Kopia Twoich celów i ustawień w formacie JSON.
         </div>
       </div>
+
+      {/* Osobny, zawsze widoczny przycisk — wcześniej "Wyloguj" był schowany
+          wewnątrz rozwijanej pozycji "Konto i połączenie z partnerem", więc
+          trzeba było najpierw zgadnąć, że to tam (zgłoszenie audytu UX). */}
+      <button
+        onClick={signOut}
+        className="w-full font-body text-[11px] py-2.5 rounded-xl bg-transparent cursor-pointer flex items-center justify-center gap-1.5"
+        style={{ border: `1px solid ${C.line}`, color: C.muted, minHeight: 44 }}
+      >
+        <LogOut size={13} /> Wyloguj
+      </button>
     </div>
   );
 }
