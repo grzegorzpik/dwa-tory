@@ -46,6 +46,9 @@ export const addDays = (ymd: Ymd, n: number): Ymd => {
 
 export const isSameDay = (a: Ymd, b: Ymd) => a.year === b.year && a.month === b.month && a.day === b.day;
 
+/** Liczba dni od `a` do `b` (dodatnia, gdy `b` jest później) — napędza "X dni opóźnienia" w Dzienniku. */
+export const daysBetween = (a: Ymd, b: Ymd) => Math.round((toDate(b).getTime() - toDate(a).getTime()) / 86_400_000);
+
 /** Poniedziałek = 0 (spec/makiety liczą tydzień od poniedziałku). */
 export const isoWeekday = (ymd: Ymd) => (toDate(ymd).getDay() + 6) % 7;
 

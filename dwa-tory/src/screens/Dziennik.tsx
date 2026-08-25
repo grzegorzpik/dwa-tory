@@ -3,15 +3,15 @@
 // przesuwania z konfliktem, kamienie milowe, "Czas dla siebie" opcjonalnie.
 
 import { useState } from 'react';
-import { Check, CalendarClock, ChevronDown, ChevronRight, Info, Plus, X, Flame, Sparkles, Heart, Trash2, Undo2 } from 'lucide-react';
+import { AlertTriangle, Check, CalendarClock, ChevronDown, ChevronRight, Info, Plus, X, Flame, Sparkles, Heart, Trash2, Undo2 } from 'lucide-react';
 import { DayChip } from '../components/DayChip';
 import { GoalDetailModal } from '../components/GoalDetailModal';
 import { GoalDot } from '../components/GoalDot';
 import { MiniTrack } from '../components/MiniTrack';
 import { MilestoneOverlay } from '../components/MilestoneOverlay';
 import { WeeklyProgress } from '../components/WeeklyProgress';
-import { ymdKey, today } from '../lib/calendarUtils';
-import { weekProgressFor } from '../lib/goals';
+import { daysBetween, parseYmdKey, ymdKey, today } from '../lib/calendarUtils';
+import { RESCHEDULE_WARNING_THRESHOLD, weekProgressFor } from '../lib/goals';
 import { useAppData } from '../store/AppDataContext';
 import { C, TYPE_COLOR } from '../theme';
 import type { Goal, Task } from '../types';
@@ -44,7 +44,14 @@ export function Dziennik({
     sendSelfTimeSignal,
   } = useAppData();
 
-  const todayTasks = tasks.filter((t) => t.date === ymdKey(today()));
+  const todayYmd = today();
+  const todayKey = ymdKey(todayYmd);
+  const todayTasks = tasks.filter((t) => t.date === todayKey);
+  /** Zadania z datą w przeszłości, nigdy nie odhaczone — bez tego po prostu znikały z appki, gdy minął ich dzień, zamiast czekać na decyzję (zgłoszenie: "niezaopiekowane, opóźnione taski"). */
+  const overdueTasks = tasks.filter((t) => !t.done && t.date < todayKey);
+  /** Cele przesuwane tyle razy, że to już nie "jeszcze jeden dzień" — ten sam próg co ostrzeżenie w zakładce Cele, tu dodatkowo na głównym ekranie, żeby nie dało się tego przeoczyć. */
+  const overdueGoals = goals.filter((g) => g.rescheduleCount >= RESCHEDULE_WARNING_THRESHOLD);
+  const hasOverdue = overdueTasks.length > 0 || overdueGoals.length > 0;
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [noteOpen, setNoteOpen] = useState<Record<string, boolean>>({});
@@ -71,6 +78,38 @@ export function Dziennik({
   return (
     <div className="rise relative min-h-full">
       <h1 className="font-head text-lg mb-3" style={{ color: C.text }}>Plan na dziś</h1>
+
+      {hasOverdue && (
+        <div className="rounded-2xl p-3 mb-3 rise" style={{ background: C.surface, border: `1px solid ${C.over}66` }}>
+          <div className="font-body text-[11px] flex items-center gap-1.5 mb-2" style={{ color: C.over }}>
+            <AlertTriangle size={13} /> Opóźnione
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {overdueTasks.map((t) => (
+              <TaskRow
+                key={t.id}
+                title={t.title}
+                overdueDays={daysBetween(parseYmdKey(t.date), todayYmd)}
+                done={t.done}
+                onToggle={() => toggleTaskDone(t.id)}
+                onEdit={() => onEditTask(t)}
+                onDelete={() => removeTask(t.id)}
+              />
+            ))}
+            {overdueGoals.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => setDetailGoal(g)}
+                className="w-full flex items-center justify-between gap-2 text-left bg-transparent border-0 p-0 cursor-pointer"
+                style={{ font: 'inherit', minHeight: 44 }}
+              >
+                <span className="font-body text-[12px] truncate" style={{ color: C.text }}>{g.title}</span>
+                <span className="font-body text-[10px] shrink-0" style={{ color: C.over }}>{g.rescheduleCount}× przesunięte</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {milestoneCelebration && (
         <MilestoneOverlay
@@ -213,7 +252,24 @@ export function Dziennik({
  * ikonka (zgłoszenie UX: ikony przejścia do edycji były za małe). Checkbox
  * i usuwanie są osobnymi przyciskami obok, nie zagnieżdżonymi w nim.
  */
-function TaskRow({ title, time, done, onToggle, onEdit, onDelete }: { title: string; time?: string; done: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void }) {
+function TaskRow({
+  title,
+  time,
+  overdueDays,
+  done,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  title: string;
+  time?: string;
+  /** Ile dni temu minęła data zadania — obecność tego propa oznacza wiersz w sekcji "Opóźnione" (inny kolor podpisu niż zwykłe "dziś"). */
+  overdueDays?: number;
+  done: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   return (
     <div className="flex items-center gap-2">
       <button
@@ -236,7 +292,14 @@ function TaskRow({ title, time, done, onToggle, onEdit, onDelete }: { title: str
         aria-label={`Edytuj zadanie: ${title}`}
       >
         <div className="font-body text-[12px] truncate" style={{ color: done ? C.muted : C.text, textDecoration: done ? 'line-through' : 'none' }}>{title}</div>
-        {time && <div className="font-body text-[10px]" style={{ color: C.muted }}>{time}</div>}
+        {overdueDays !== undefined ? (
+          <div className="font-body text-[10px]" style={{ color: C.over }}>
+            {overdueDays === 1 ? '1 dzień temu' : `${overdueDays} dni temu`}
+            {time ? ` · ${time}` : ''}
+          </div>
+        ) : (
+          time && <div className="font-body text-[10px]" style={{ color: C.muted }}>{time}</div>
+        )}
       </button>
       <button onClick={onDelete} aria-label="Usuń zadanie" className="bg-transparent border-0 cursor-pointer shrink-0 flex items-center justify-center" style={{ color: C.muted, width: 32, height: 32, margin: '-5px' }}>
         <Trash2 size={14} />

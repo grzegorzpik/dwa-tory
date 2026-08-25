@@ -255,6 +255,31 @@ wie, więc dźwięku nie usłyszysz. To dokładnie ta sama granica, co przy
 serwerowego triggera (nie zbudowane, poza zakresem tej poprawki: użytkownik
 świadomie wybrał "tylko dźwięk teraz", zostawiając Push jako preferencję).
 
+**Naprawione — sekcja "Opóźnione" w Dzienniku (na wyraźną prośbę
+użytkownika, "niech wiszą jak wyrzut sumienia"):** dwie kategorie rzeczy,
+które appka dotąd po cichu gubiła zamiast czekać na decyzję:
+
+1. **Zadania** ("Szybkie zadania") z datą w przeszłości, nigdy nie
+   odhaczone. `Dziennik` pokazywał tylko `tasks.filter(t => t.date ===
+   dziś)` — zadanie, którego dzień minął bez odhaczenia, po prostu znikało
+   z appki na dobre (widoczne dalej tylko w Kalendarzu, w widoku
+   historycznego dnia). Teraz `overdueTasks` (data < dziś, `!done`)
+   trafiają do nowej sekcji na samej górze Dziennika, nad kartą "Cele" —
+   pierwsze, co widać po otwarciu appki.
+2. **Cele przesuwane zbyt wiele razy** — ostrzeżenie `{count}× przesunięte
+   — sprawdź tempo` istniało już wcześniej (`RESCHEDULE_WARNING_THRESHOLD`
+   w `lib/goals.ts`), ale tylko jako notka na karcie w zakładce Cele — łatwo
+   przeoczyć, bo Dziennik (ekran domyślny) jej w ogóle nie pokazywał. Ten
+   sam próg teraz dodatkowo trafia do sekcji "Opóźnione".
+
+Sekcja renderuje się tylko, gdy faktycznie jest co pokazać (żadnej pustej
+karty "brawo, nic zaległego") i używa `C.over` (jedyny czerwonawy kolor w
+palecie — dotąd tylko komunikaty błędów) zamiast złota, żeby wizualnie
+odróżnić "to naprawdę zaległe" od zwykłych podpowiedzi. Kliknięcie
+zaległego zadania otwiera ten sam Edytor co zwykle (można tam zmienić datę
+na dziś, jak każde inne zadanie) — nie ma osobnego przycisku "przenieś na
+dziś", bo Edytor już to umie.
+
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż
 44px obszar dotyku — świadomie nie ruszone w tym audycie, bo te chipy
