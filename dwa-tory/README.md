@@ -323,21 +323,15 @@ npm run build     # build produkcyjny (tsc + vite build), generuje service worke
 npm run preview   # podgląd builda produkcyjnego (tu realnie testować tryb offline/instalowalność)
 ```
 
-**Wdrożenie:** `.github/workflows/deploy.yml` builduje i publikuje na
-GitHub Pages przy każdym pushu do `main`. Wymaga tych samych dwóch zmiennych
-jako **sekretów repo** (Settings → Secrets and variables → Actions):
-`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — klucz `anon` jest publiczny
-z założenia (bezpieczny w buncie frontendu), rzeczywiste bezpieczeństwo
-danych daje RLS w bazie (`0002_rls_policies.sql`), nie ukrycie klucza.
-
-**Uwaga:** ten plik odwołuje się do `.github/workflows/deploy.yml`, ale w
-tym repo (`grzegorzpik/dwa-tory`) taki plik faktycznie nie istnieje (brak
-`.github/workflows/` w ogóle, sprawdzone `git log` — nigdy nie był
-commitowany). Wdrożenie na GitHub Pages jest więc dziś w praktyce ręczne
-(`npm run build` + wrzucenie `dist/` np. przez `gh-pages` albo ręczny push
-na branch `gh-pages`), nie automatyczne przy każdym pushu — do zweryfikowania
-i ewentualnego dodania tego workflow jako osobne zadanie, nie część tej
-poprawki (Push).
+**Wdrożenie:** `../.github/workflows/deploy.yml` (w korzeniu repo, jeden
+poziom nad tym katalogiem — nie mylić z nieistniejącym
+`dwa-tory/.github/`) builduje i publikuje na GitHub Pages przy każdym
+pushu do `main`. Wymaga zmiennych jako **sekretów repo** (Settings →
+Secrets and variables → Actions): `VITE_SUPABASE_URL`,
+`VITE_SUPABASE_ANON_KEY` — klucz `anon` jest publiczny z założenia
+(bezpieczny w buncie frontendu), rzeczywiste bezpieczeństwo danych daje RLS
+w bazie (`0002_rls_policies.sql`), nie ukrycie klucza — oraz
+`VITE_VAPID_PUBLIC_KEY` (Push, patrz sekcja niżej).
 
 ## Push (dokończenie kroku 8 — prawdziwe powiadomienia w tle)
 
@@ -375,7 +369,11 @@ Wymaga to jednorazowej konfiguracji poza samym kodem appki:
    nie przez SQL w migracji — inaczej URL/autoryzacja konkretnego projektu
    musiałyby trafić do repo.
 5. Odpal migrację `0009_push_subscriptions.sql` (jak każdą inną, patrz
-   wyżej) i dodaj `VITE_VAPID_PUBLIC_KEY` do `.env.local`.
+   wyżej). Do produkcji klucz publiczny trafia jako sekret repo
+   `VITE_VAPID_PUBLIC_KEY` (Settings → Secrets and variables → Actions) —
+   `../.github/workflows/deploy.yml` już go czyta i builduje/publikuje
+   automatycznie przy pushu do `main`, nic więcej nie trzeba budować ręcznie.
+   Do lokalnego dev dodaj go też do `.env.local`.
 
 **Ograniczenie platformy (iPhone, bez obejścia — ta sama kategoria co
 wycofana integracja z kalendarzem):** Web Push na iOS działa WYŁĄCZNIE w
