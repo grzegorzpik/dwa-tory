@@ -280,6 +280,23 @@ zaległego zadania otwiera ten sam Edytor co zwykle (można tam zmienić datę
 na dziś, jak każde inne zadanie) — nie ma osobnego przycisku "przenieś na
 dziś", bo Edytor już to umie.
 
+**Naprawione — dane partnerki potrafiły utknąć w nieaktualnym stanie
+("udostępnione zadanie niewidoczne u partnerki"):** zgłoszenie, że zadanie
+zapisane z włączonym "Widoczne dla partnerki" nie pokazywało się wcale na
+koncie partnerki. Kod zapisu i RLS (`0006_tasks_partner_visibility.sql`,
+`current_partner_id()`) są poprawne i identyczne z celami, które działają —
+podejrzenie pada więc na iOS: zabackgroundowana PWA potrafi po cichu zerwać
+połączenie Realtime, appka o tym nie wie i dane partnerki (cele, zadania,
+powiadomienia) zostają nieaktualne aż appka dostanie kolejne zdarzenie na
+tym samym kanale — co może nigdy nie nastąpić, jeśli to właśnie ten kanał
+ucichł. Appka nigdzie nie miała obsługi "wróciłem na pierwszy plan, odśwież
+się". Naprawione: nowy `useEffect` w `AppDataContext` nasłuchuje
+`visibilitychange`/`focus` i przy każdym powrocie appki na pierwszy plan
+robi pełny re-pull celów, zadań i powiadomień partnerki — niezależnie od
+tego, czy sam socket Realtime się naprawił. Nie zweryfikowane end-to-end na
+dwóch prawdziwych, sparowanych kontach (poza zasięgiem tego sandboksa) —
+do potwierdzenia na żywo.
+
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż
 44px obszar dotyku — świadomie nie ruszone w tym audycie, bo te chipy

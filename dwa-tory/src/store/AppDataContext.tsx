@@ -394,6 +394,31 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     };
   }, [pairId, refreshNotifications]);
 
+  // Odświeżenie danych partnerki po powrocie appki na pierwszy plan — na iOS
+  // zabackgroundowana PWA potrafi zerwać połączenie Realtime bez żadnego
+  // sygnału do klienta (appka nie wie, że coś przegapiła), więc dane
+  // partnerki (cele/zadania/powiadomienia) mogą zostać nieaktualne aż do
+  // kolejnego zdarzenia na kanale, które może nigdy nie nadejść, jeśli to
+  // właśnie ten kanał ucichł. Pełny re-pull przy każdym powrocie do appki to
+  // tania i pewna siatka bezpieczeństwa, niezależna od tego, czy socket sam
+  // się naprawił (zgłoszenie: udostępnione zadanie niewidoczne u partnerki).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (partnerId) {
+        void refreshPartnerGoals(partnerId);
+        void refreshPartnerTasks(partnerId);
+      }
+      if (pairId) void refreshNotifications(pairId);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [partnerId, pairId, refreshPartnerGoals, refreshPartnerTasks, refreshNotifications]);
+
   /** Stempluje updatedAt, zapisuje lokalnie i wypycha w tle do Supabase; zwraca ostemplowany cel do wstawienia w stan React. */
   const persistGoal = useCallback(
     (goal: Goal): Goal => {
