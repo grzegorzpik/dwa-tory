@@ -58,6 +58,7 @@ export function Kalendarz({
   const [anchor, setAnchor] = useState<Ymd>(today());
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [showAllDone, setShowAllDone] = useState(false);
+  const [showAllDoneTasks, setShowAllDoneTasks] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
 
@@ -91,6 +92,11 @@ export function Kalendarz({
   const upcomingTasks: TaskEntry[] = peopleWithTasks
     .flatMap(({ person, tasks: personTasks, isOwn }) => personTasks.filter((task) => !task.done).map((task) => ({ task, person, isOwn })))
     .sort((a, b) => a.task.date.localeCompare(b.task.date));
+  /** Mirror upcomingTasks, dla symetrii z "Do zrobienia"/"Zrealizowane" przy kamieniach — zrealizowane zadanie dotąd po prostu znikało ze zbiorczego widoku (zgłoszenie UX), zostając widoczne tylko w podglądzie tego konkretnego dnia. */
+  const doneTasks: TaskEntry[] = peopleWithTasks
+    .flatMap(({ person, tasks: personTasks, isOwn }) => personTasks.filter((task) => task.done).map((task) => ({ task, person, isOwn })))
+    .sort((a, b) => b.task.date.localeCompare(a.task.date));
+  const doneTasksShown = showAllDoneTasks ? doneTasks : doneTasks.slice(0, 5);
 
   const selectedDayEntries = selectedDay ? dayEntriesFor(peopleWithGoals, selectedDay, t.year, selectedDay === todayKey) : [];
   const selectedDayTasks = selectedDay ? tasksByDay(selectedDay) : [];
@@ -203,6 +209,20 @@ export function Kalendarz({
       </div>
 
       <div>
+        <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Zrealizowane zadania</div>
+        {doneTasksShown.length === 0 ? (
+          <EmptyRow text="Jeszcze żadnego zrealizowanego zadania." />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {doneTasksShown.map(({ task, person, isOwn }) => (
+              <TaskListRow key={task.id} task={task} person={person} showAvatar={view === 'both'} onClick={() => (isOwn ? onEditTask(task) : setSelectedDay(task.date))} />
+            ))}
+          </div>
+        )}
+        {!showAllDoneTasks && doneTasks.length > 5 && <ShowMoreButton onClick={() => setShowAllDoneTasks(true)} />}
+      </div>
+
+      <div>
         <div className="font-body text-[11px] mb-2" style={{ color: C.muted }}>Do zrobienia</div>
         {upcomingShown.length === 0 ? (
           <EmptyRow text="Brak nadchodzących kamieni." />
@@ -308,15 +328,19 @@ function MilestoneRow({ m, showAvatar, person }: { m: CalendarMilestone; showAva
 
 function TaskListRow({ task, person, showAvatar, onClick }: { task: Task; person: Person; showAvatar: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="w-full rounded-xl px-3 py-2.5 flex items-center gap-3 cursor-pointer text-left border-0 bg-transparent" style={{ background: C.surface, border: `1px solid ${C.line}` }}>
+    <button
+      onClick={onClick}
+      className="w-full rounded-xl px-3 py-2.5 flex items-center gap-3 cursor-pointer text-left border-0 bg-transparent"
+      style={{ background: C.surface, border: `1px solid ${C.line}`, opacity: task.done ? 0.5 : 1 }}
+    >
       <div className="w-12 shrink-0 font-display text-sm text-center" style={{ color: C.gold }}>{formatShortDate(parseYmdKey(task.date))}</div>
       <div style={{ width: 1, height: 24, background: C.line }} />
       {showAvatar && <Avatar person={person} size={20} />}
       <div className="flex-1 min-w-0">
-        <div className="font-body text-[12px] truncate" style={{ color: C.text }}>{task.title}</div>
+        <div className="font-body text-[12px] truncate" style={{ color: C.text, textDecoration: task.done ? 'line-through' : 'none' }}>{task.title}</div>
         {task.time && <div className="font-body text-[10px] truncate" style={{ color: C.muted }}>{task.time}</div>}
       </div>
-      <ChevronRight size={14} style={{ color: C.muted }} className="shrink-0" />
+      {task.done ? <Check size={14} style={{ color: C.ok }} className="shrink-0" /> : <ChevronRight size={14} style={{ color: C.muted }} className="shrink-0" />}
     </button>
   );
 }

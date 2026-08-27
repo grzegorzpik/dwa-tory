@@ -297,6 +297,17 @@ tego, czy sam socket Realtime się naprawił. Nie zweryfikowane end-to-end na
 dwóch prawdziwych, sparowanych kontach (poza zasięgiem tego sandboksa) —
 do potwierdzenia na żywo.
 
+**Naprawione — zrealizowane zadania znikały ze zbiorczego widoku
+Kalendarza:** lista "Zadania" w Kalendarzu (`upcomingTasks`) zawsze
+filtrowała `!done` — zadanie po odhaczeniu po prostu znikało z tego
+widoku, zostając widoczne tylko w podglądzie konkretnego dnia (kliknięcie
+dnia w siatce). Kamienie milowe od dawna mają dwie symetryczne listy ("Do
+zrobienia" / "Zrealizowane"), zadania — tylko jedną. Dodana analogiczna
+sekcja "Zrealizowane zadania" (ten sam mechanizm co przy kamieniach:
+limit 5 + "Pokaż więcej", posortowane od najnowszych), a `TaskListRow`
+dostał to samo przygaszenie/przekreślenie i ✓ zamiast strzałki co
+`MilestoneRow` dla zrobionych wpisów.
+
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż
 44px obszar dotyku — świadomie nie ruszone w tym audycie, bo te chipy
