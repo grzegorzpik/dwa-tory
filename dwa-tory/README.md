@@ -293,9 +293,30 @@ ucichł. Appka nigdzie nie miała obsługi "wróciłem na pierwszy plan, odświe
 się". Naprawione: nowy `useEffect` w `AppDataContext` nasłuchuje
 `visibilitychange`/`focus` i przy każdym powrocie appki na pierwszy plan
 robi pełny re-pull celów, zadań i powiadomień partnerki — niezależnie od
-tego, czy sam socket Realtime się naprawił. Nie zweryfikowane end-to-end na
-dwóch prawdziwych, sparowanych kontach (poza zasięgiem tego sandboksa) —
-do potwierdzenia na żywo.
+tego, czy sam socket Realtime się naprawił. **Uwaga:** to nie była
+faktyczna przyczyna zgłoszenia — patrz niżej "Naprawione — widoczność
+zadań dla partnerki nie działała wcale" — ale zostaje jako osobne,
+prawdziwe wzmocnienie odporności appki.
+
+**Naprawione — widoczność zadań dla partnerki nie działała wcale (w obie
+strony):** powyższa poprawka (odświeżanie po powrocie na pierwszy plan)
+nie pomogła — zgłoszenie wróciło w drugą stronę (zadanie Wioli niewidoczne
+u mnie). Diagnoza przez zapytanie do `information_schema`/`pg_policies` w
+SQL Editorze pokazała prawdziwą przyczynę: na produkcyjnej bazie brakowało
+kolumny `visible_to_partner` na `tasks` I jakiejkolwiek polityki RLS
+`SELECT` na tej tabeli — czyli `0006_tasks_partner_visibility.sql` (być
+może razem z częścią `0005_tasks.sql`) nigdy faktycznie nie zostały
+zaaplikowane w tym projekcie, mimo że reszta appki (i reszta migracji)
+zakładała, że są. Własne zadania mimo to "działały", bo appka pokazuje
+lokalny cache (IndexedDB) niezależnie od tego, czy Supabase faktycznie
+potwierdza dane przy odczycie — stąd błąd był niewidoczny, dopóki ktoś nie
+spróbował udostępnić zadania DRUGIEJ osobie. Naprawa: nowa migracja
+`0010_fix_tasks_partner_visibility.sql`, w pełni idempotentna (`IF
+EXISTS`/`IF NOT EXISTS`), doprowadzająca stan do tego samego efektu co
+0005+0006 niezależnie od tego, co już zostało zastosowane. Nie ma dowodu,
+że treść `0006` sama w sobie miała błąd — najbardziej prawdopodobne to po
+prostu pominięty krok przy pierwszym uruchamianiu migracji w tym
+konkretnym projekcie.
 
 **Naprawione — zrealizowane zadania znikały ze zbiorczego widoku
 Kalendarza:** lista "Zadania" w Kalendarzu (`upcomingTasks`) zawsze
@@ -331,13 +352,19 @@ backendu).
    `0003_pairing.sql` → `0004_realtime.sql` → `0005_tasks.sql` →
    `0006_tasks_partner_visibility.sql` →
    `0007_calendar_exports_bucket.sql` →
-   `0008_remove_calendar_sync.sql` → `0009_push_subscriptions.sql`, w tej
-   kolejności. `0007` zakłada bucket Storage `calendar-exports`, `0008` go
-   od razu kasuje wraz z kolumną `sync_to_phone_calendar` — wycofana
-   integracja z kalendarzem telefonu, patrz "Uwaga historyczna" wyżej.
-   `0009` zakłada `push_subscriptions` — patrz sekcja "Push" niżej, dodatkowa
-   konfiguracja poza samą migracją. Migracje trzymają się w kolejności, w
-   jakiej faktycznie powstawały, zamiast przepisywać już zaaplikowane pliki.
+   `0008_remove_calendar_sync.sql` → `0009_push_subscriptions.sql` →
+   `0010_fix_tasks_partner_visibility.sql`, w tej kolejności. `0007` zakłada
+   bucket Storage `calendar-exports`, `0008` go od razu kasuje wraz z
+   kolumną `sync_to_phone_calendar` — wycofana integracja z kalendarzem
+   telefonu, patrz "Uwaga historyczna" wyżej. `0009` zakłada
+   `push_subscriptions` — patrz sekcja "Push" niżej, dodatkowa konfiguracja
+   poza samą migracją. `0010` naprawia widoczność zadań dla partnerki, patrz
+   "Naprawione — widoczność zadań dla partnerki nie działała wcale" niżej —
+   **jeśli zakładasz projekt od zera, `0010` i tak nie zaszkodzi** (jest w
+   pełni idempotentna), ale prawdziwa przyczyna to prawdopodobnie
+   pojedynczy pominięty krok przy pierwszym uruchamianiu migracji, nie błąd
+   w treści `0006`. Migracje trzymają się w kolejności, w jakiej faktycznie
+   powstawały, zamiast przepisywać już zaaplikowane pliki.
 3. Skopiuj `.env.local.example` do `.env.local` i wklej `Project URL` oraz
    `anon public` key ze Settings → API swojego projektu Supabase. Klucz
    `VITE_VAPID_PUBLIC_KEY` (Push) jest opcjonalny — bez niego appka działa
