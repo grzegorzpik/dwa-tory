@@ -299,24 +299,40 @@ zadań dla partnerki nie działała wcale" — ale zostaje jako osobne,
 prawdziwe wzmocnienie odporności appki.
 
 **Naprawione — widoczność zadań dla partnerki nie działała wcale (w obie
-strony):** powyższa poprawka (odświeżanie po powrocie na pierwszy plan)
-nie pomogła — zgłoszenie wróciło w drugą stronę (zadanie Wioli niewidoczne
-u mnie). Diagnoza przez zapytanie do `information_schema`/`pg_policies` w
-SQL Editorze pokazała prawdziwą przyczynę: na produkcyjnej bazie brakowało
-kolumny `visible_to_partner` na `tasks` I jakiejkolwiek polityki RLS
-`SELECT` na tej tabeli — czyli `0006_tasks_partner_visibility.sql` (być
-może razem z częścią `0005_tasks.sql`) nigdy faktycznie nie zostały
-zaaplikowane w tym projekcie, mimo że reszta appki (i reszta migracji)
-zakładała, że są. Własne zadania mimo to "działały", bo appka pokazuje
-lokalny cache (IndexedDB) niezależnie od tego, czy Supabase faktycznie
-potwierdza dane przy odczycie — stąd błąd był niewidoczny, dopóki ktoś nie
-spróbował udostępnić zadania DRUGIEJ osobie. Naprawa: nowa migracja
-`0010_fix_tasks_partner_visibility.sql`, w pełni idempotentna (`IF
-EXISTS`/`IF NOT EXISTS`), doprowadzająca stan do tego samego efektu co
-0005+0006 niezależnie od tego, co już zostało zastosowane. Nie ma dowodu,
-że treść `0006` sama w sobie miała błąd — najbardziej prawdopodobne to po
-prostu pominięty krok przy pierwszym uruchamianiu migracji w tym
-konkretnym projekcie.
+strony), bo tabela `tasks` w ogóle nie istniała:** powyższa poprawka
+(odświeżanie po powrocie na pierwszy plan) nie pomogła — zgłoszenie
+wróciło w drugą stronę (zadanie Wioli niewidoczne u mnie). Pierwsza
+diagnoza (przez `pg_policies`) sugerowała brakującą migrację `0006` —
+głębsza diagnoza (`information_schema.tables`) pokazała, że w tym
+projekcie NIGDY nie zaaplikowano nawet `0005_tasks.sql`:
+`relation "public.tasks" does not exist`. Własne zadania mimo to
+"działały", bo appka pokazuje lokalny cache (IndexedDB) niezależnie od
+tego, czy Supabase faktycznie potwierdza zapis/odczyt (błąd zapisu tylko
+cicho logowany do konsoli) — stąd błąd był niewidoczny, dopóki ktoś nie
+spróbował udostępnić zadania DRUGIEJ osobie. Ta sama diagnoza wykazała
+DRUGĄ, niezależną dziurę: tabela `notifications` istniała, ale nigdy nie
+została dodana do publikacji `supabase_realtime` (`0004_realtime.sql`
+objęła tylko goals/instances/milestones) — więc panel Powiadomień i
+dźwięk powiadomienia (`src/lib/sound.ts`) nigdy nie działały "na żywo"
+między dwoma otwartymi appkami, tylko przy starcie appki/powrocie z tła.
+Naprawa: `0010_fix_tasks_partner_visibility.sql` tworzy `tasks` od zera
+(0005+0006 połączone w finalny stan) i dopina obie tabele do Realtime —
+w pełni idempotentna, bezpieczna do ponownego uruchomienia. **Zadania
+utworzone przed tą naprawą istnieją tylko lokalnie na danym telefonie i
+się nie doślą same** — trzeba je raz "tknąć" (edycja i zapis, albo
+odhaczenie i cofnięcie), żeby faktycznie trafiły do Supabase.
+
+Rozważałem automatyczne dopychanie takich "osieroconych" lokalnych
+rekordów przy każdym starcie appki (`reconcileOwnGoals`/`reconcileOwnTasks`
+w `AppDataContext` już scalają lokalne z Supabase, ale gałąź "lokalne
+istnieje, zdalne nie" po prostu zachowuje lokalne bez odsyłania) —
+świadomie tego NIE zrobiłem: appka nie potrafi odróżnić "nigdy nie
+zdążyło się zsynchronizować" od "usunięte na innym urządzeniu, ale wciąż
+w lokalnym cache tego telefonu" — oba wyglądają identycznie (lokalne
+istnieje, zdalne nie). Automatyczne dosyłanie wskrzeszałoby usunięte
+rzeczy. Ręczne "tknięcie" nielicznych zadań sprzed tej jednorazowej awarii
+jest bezpieczniejsze niż generyczna reguła, która mogłaby cicho cofać
+usunięcia w normalnej pracy appki.
 
 **Naprawione — zrealizowane zadania znikały ze zbiorczego widoku
 Kalendarza:** lista "Zadania" w Kalendarzu (`upcomingTasks`) zawsze
