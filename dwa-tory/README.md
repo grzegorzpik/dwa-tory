@@ -358,6 +358,25 @@ cofnięciu) zadania z włączonym "Widoczne dla partnerki" — dokładnie ten
 sam mechanizm co przy kamieniu milowym, zwykłe prywatne zadania nadal
 milczą.
 
+**Naprawione — odpowiedź na powiadomienie nigdy nie docierała do autora
+osiągnięcia:** zgłoszenie "skomentowałem zrealizowany cel, Wiola mówi że
+nic nie dostała". To nie był problem z wysyłką — `replyToNotification`
+zapisuje odpowiedź na TYM SAMYM wierszu `notifications`, który opisuje
+oryginalne zdarzenie (`actor_id` = osoba, która coś osiągnęła). RLS na to
+pozwala (odpowiada tylko odbiorca, `notifications_update_reply_by_recipient`),
+więc zapis w bazie się udawał. Problem był w `refreshNotifications`
+(`AppDataContext`): filtr `actorId !== userId`, który chowa "moje własne
+wpisy" przed panelem partnerki (słusznie — nikt nie chce dostawać
+powiadomienia o WŁASNYM kamieniu milowym), wycinał też odpowiedź
+partnerki, bo siedzi na tym samym wierszu, który dla AUTORA jest "moim
+własnym wpisem" — więc autor nigdy jej nie widział, mimo że dotarła.
+Naprawione: filtr teraz robi wyjątek dla własnego wpisu, który ma już
+`reply` — `NotificationsPanel` renderuje taki wiersz jako "Ty {opis
+zdarzenia}" + reakcja partnerki poniżej, bez pola do odpowiedzi (to nie
+jest zdarzenie do skomentowania, tylko już otrzymana reakcja). Dane były
+cały czas w bazie — wystarczy odświeżyć appkę po tej poprawce, żeby
+istniejąca odpowiedź się pojawiła, bez potrzeby ręcznego SQL-a.
+
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż
 44px obszar dotyku — świadomie nie ruszone w tym audycie, bo te chipy

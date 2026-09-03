@@ -354,19 +354,23 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         const remote = await pullNotifications(id);
         // Panel pokazuje działania PARTNERKI (spec §5.8) — RLS zwraca cały
         // wspólny feed pary (obie strony), więc własne wpisy trzeba odfiltrować
-        // tutaj. Bez tego badge/panel liczyłby własne kamienie/przesunięcia
-        // jako "nieodpowiedziane", a odpowiedź na własny wpis i tak odrzuci
-        // RLS (notifications_update_reply_by_recipient: actor_id <> auth.uid()).
-        const forMe = remote.filter((n) => n.actorId !== userId);
-        const currentIds = new Set(forMe.map((n) => n.id));
+        // tutaj. WYJĄTEK: własny wpis z już udzieloną odpowiedzią partnerki
+        // zostaje — inaczej odpowiedź ginęła bezpowrotnie z punktu widzenia
+        // autora: zapisywała się poprawnie w bazie (RLS na to pozwala —
+        // odpowiada tylko odbiorca, nie autor), ale appka autora i tak chowała
+        // CAŁY wiersz jako "mój własny", więc nigdy nie zobaczył reakcji
+        // partnerki na swoje osiągnięcie (zgłoszenie: "skomentowałem cel,
+        // Wiola nic nie dostała" — dostała, appka jej to tylko chowała).
+        const relevant = remote.filter((n) => n.actorId !== userId || n.reply);
+        const partnerActionIds = new Set(relevant.filter((n) => n.actorId !== userId).map((n) => n.id));
         const previousIds = seenNotificationIds.current;
-        const hasNew = previousIds !== null && forMe.some((n) => !previousIds.has(n.id));
+        const hasNew = previousIds !== null && [...partnerActionIds].some((nid) => !previousIds.has(nid));
         if (hasNew && soundEnabledRef.current) {
           playNotificationSound();
         }
-        seenNotificationIds.current = currentIds;
-        setNotifications(forMe);
-        await Promise.all(forMe.map((n) => db.putNotification(n)));
+        seenNotificationIds.current = partnerActionIds;
+        setNotifications(relevant);
+        await Promise.all(relevant.map((n) => db.putNotification(n)));
       } catch (e) {
         console.error('Nie udało się pobrać powiadomień', e);
       }
