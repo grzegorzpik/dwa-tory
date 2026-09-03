@@ -605,9 +605,24 @@ export function AppDataProvider({ userId, children }: { userId: string; children
 
   const toggleTaskDone = useCallback(
     (taskId: string) => {
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? persistTask({ ...t, done: !t.done }) : t)));
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.id !== taskId) return t;
+          const wasDone = t.done;
+          const updated = persistTask({ ...t, done: !t.done });
+          // Tylko przy ODHACZENIU (nie cofnięciu) udostępnionego zadania —
+          // ten sam jednorazowy sygnał co przy kamieniu milowym, nigdy przy
+          // zwykłym check-offie własnego, prywatnego zadania.
+          if (!wasDone && updated.done && updated.visibleToPartner && pairId) {
+            void pushNotification(pairId, userId, `kończy zadanie „${updated.title}"`).catch((e) =>
+              console.error('Nie udało się wysłać powiadomienia o zadaniu', e),
+            );
+          }
+          return updated;
+        }),
+      );
     },
-    [persistTask],
+    [persistTask, pairId, userId],
   );
 
   const removeTask = useCallback((taskId: string) => {

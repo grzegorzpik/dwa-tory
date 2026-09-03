@@ -345,6 +345,17 @@ limit 5 + "Pokaż więcej", posortowane od najnowszych), a `TaskListRow`
 dostał to samo przygaszenie/przekreślenie i ✓ zamiast strzałki co
 `MilestoneRow` dla zrobionych wpisów.
 
+**Dodane — powiadomienie przy odhaczeniu udostępnionego zadania:**
+zgłoszenie "Wiola realizuje zadania, ale żadne powiadomienia nie
+przychodzą" — to nie był bug, appka od początku wysyłała powiadomienia
+tylko przy kamieniu milowym i przesunięciu (spec §5.8, żeby nie
+zaspamować drugiej strony zwykłym odhaczaniem). Na wyraźną prośbę
+użytkownika dodane: `toggleTaskDone` w `AppDataContext` wysyła teraz ten
+sam jednorazowy sygnał (`pushNotification`) przy ODHACZENIU (nie
+cofnięciu) zadania z włączonym "Widoczne dla partnerki" — dokładnie ten
+sam mechanizm co przy kamieniu milowym, zwykłe prywatne zadania nadal
+milczą.
+
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż
 44px obszar dotyku — świadomie nie ruszone w tym audycie, bo te chipy
