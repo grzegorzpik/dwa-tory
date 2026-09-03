@@ -30,7 +30,7 @@ function PhoneFrame({ children }: { children: ReactNode }) {
 }
 
 function AppShell() {
-  const { loading, currentUser, partner, notifications, settings, replyCelebration } = useAppData();
+  const { loading, currentUser, partner, settings, replyCelebration, unreadNotificationsCount, markRepliesSeen } = useAppData();
   const [tab, setTab] = useState<TabId>('dziennik');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
@@ -68,9 +68,17 @@ function AppShell() {
       <Header
         currentUser={currentUser}
         showStreak={tab === 'dziennik'}
-        unreadNotifications={notifications.filter((n) => !n.responded).length}
+        unreadNotifications={unreadNotificationsCount}
         onAvatarClick={() => goToTab('profil')}
-        onBellClick={() => setNotificationsOpen((o) => !o)}
+        onBellClick={() =>
+          setNotificationsOpen((o) => {
+            const next = !o;
+            // Czyści odznakę dla WŁASNYCH wpisów z reakcją partnerki dopiero
+            // przy otwarciu (nie przy zamknięciu) — patrz AppDataContext.
+            if (next) markRepliesSeen();
+            return next;
+          })
+        }
       />
 
       <div className="flex-1 overflow-y-auto px-4 pb-4 relative">

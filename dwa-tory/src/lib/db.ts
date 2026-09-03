@@ -235,6 +235,26 @@ export async function setCurrentUserId(id: string): Promise<void> {
   await db.put('meta', id, CURRENT_USER_KEY);
 }
 
+// --- powiadomienia: id "moich" wpisów z reakcją partnerki, które już
+// widziałem (napędza odznakę dzwonka — spec: "coś wpadło", nie tylko
+// "czeka na Twoją odpowiedź") ----------------------------------------
+
+const SEEN_REPLY_IDS_KEY = 'seenReplyIds';
+
+export async function getSeenReplyIds(): Promise<string[]> {
+  const db = (await getDb()) as any;
+  const raw = await db.get('meta', SEEN_REPLY_IDS_KEY);
+  return raw ? (JSON.parse(raw) as string[]) : [];
+}
+
+export async function addSeenReplyIds(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = (await getDb()) as any;
+  const existing = await getSeenReplyIds();
+  const merged = Array.from(new Set([...existing, ...ids]));
+  await db.put('meta', JSON.stringify(merged), SEEN_REPLY_IDS_KEY);
+}
+
 // --- inicjalizacja / seed --------------------------------------------------
 
 /**

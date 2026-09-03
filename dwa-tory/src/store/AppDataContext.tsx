@@ -82,6 +82,10 @@ interface AppDataValue {
   updateProfile: (patch: Partial<Pick<Person, 'photo' | 'name'>>) => void;
   notifications: AppNotification[];
   sendReply: (notificationId: string, text: string) => void;
+  /** Liczba do odznaki dzwonka — patrz markRepliesSeen. */
+  unreadNotificationsCount: number;
+  /** Woła Header/AppShell przy otwarciu panelu Powiadomień. */
+  markRepliesSeen: () => void;
   /** Wysyła partnerce sygnał "biorę chwilę dla siebie" (spec §5.1/§5.3) — jednorazowe powiadomienie, jak przy kamieniu milowym, bez trwałego stanu do zsynchronizowania. */
   sendSelfTimeSignal: (duration: string) => void;
 }
@@ -197,6 +201,12 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   const [celebrateAllDone, setCelebrateAllDone] = useState(false);
   const [milestoneCelebration, setMilestoneCelebration] = useState<MilestoneCelebration | null>(null);
   const [replyCelebration, setReplyCelebration] = useState<ReplyCelebration | null>(null);
+  // Id "moich" wpisów z już OBEJRZANĄ reakcją partnerki (trwałe, IndexedDB —
+  // patrz markRepliesSeen) — bez tego dzwonek nigdy nie sygnalizował nowej
+  // reakcji: `responded` jest ustawiane przez samą odpowiedź partnerki, nie
+  // przez to, czy AUTOR zdążył ją jeszcze zobaczyć (zgłoszenie: "trzeba było
+  // przeklinać się do powiadomień, dzwonek nic nie pokazywał").
+  const [seenReplyIds, setSeenReplyIds] = useState<Set<string>>(new Set());
   const wasAllDone = useRef(false);
   // `null` = jeszcze nie wczytano żadnych powiadomień (pierwszy refresh po
   // zalogowaniu/sparowaniu) — dźwięk ma grać tylko dla NOWYCH powiadomień,
@@ -241,11 +251,12 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         void syncProfileToSupabase(person);
         await db.setCurrentUserId(userId);
 
-        const [myGoals, myTasks, savedSettings, allNotifications] = await Promise.all([
+        const [myGoals, myTasks, savedSettings, allNotifications, seenReplies] = await Promise.all([
           db.getGoalsForPerson(userId),
           db.getTasksForPerson(userId),
           db.getSettings(),
           db.getAllNotifications(),
+          db.getSeenReplyIds(),
         ]);
         if (cancelled) return;
         setPeople({ [userId]: person });
@@ -253,6 +264,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         setTasks(myTasks);
         setNotifications(allNotifications);
         setSettings(savedSettings ?? DEFAULT_SETTINGS);
+        setSeenReplyIds(new Set(seenReplies));
 
         // Dociąga/scala z Supabase w tle — appka już pokazuje dane lokalne,
         // to tylko dogania resztę (nowe urządzenie, zmiany zrobione offline gdzie indziej).
@@ -674,6 +686,19 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     );
   }, []);
 
+  /** Wołane przy otwarciu panelu Powiadomień — czyści odznakę dzwonka dla WŁASNYCH wpisów, które właśnie zobaczyłem (patrz seenReplyIds). */
+  const markRepliesSeen = useCallback(() => {
+    const ids = notifications.filter((n) => n.actorId === userId && n.reply).map((n) => n.id);
+    if (ids.length === 0) return;
+    setSeenReplyIds((prev) => new Set([...prev, ...ids]));
+    void db.addSeenReplyIds(ids).catch((e) => console.error('Nie udało się zapisać obejrzanych reakcji', e));
+  }, [notifications, userId]);
+
+  /** Dzwonek: partnerka czeka na odpowiedź (responded=false) LUB moje własne osiągnięcie dostało reakcję, której jeszcze nie widziałem. */
+  const unreadNotificationsCount = notifications.filter(
+    (n) => (n.actorId !== userId && !n.responded) || (n.actorId === userId && n.reply && !seenReplyIds.has(n.id)),
+  ).length;
+
   const updateSettings = useCallback((patch: Partial<AppSettings>) => {
     setSettings((prev) => {
       const updated = { ...prev, ...patch };
@@ -740,6 +765,8 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     updateProfile,
     notifications,
     sendReply,
+    unreadNotificationsCount,
+    markRepliesSeen,
     sendSelfTimeSignal,
   };
 

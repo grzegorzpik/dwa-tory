@@ -405,6 +405,22 @@ powiadomień (`seenRepliedOwnIds`, ref zaczynający jako `null` — pierwsze
 całej istniejącej historii, tylko dla naprawdę nowych reakcji od tego
 momentu w przód).
 
+**Naprawione — dzwonek nie sygnalizował nowej reakcji partnerki na
+własne osiągnięcie:** po tym jak reakcja Wioli faktycznie dotarła
+(poprzednie dwie poprawki), zgłoszenie: dzwonek milczał, trzeba było
+"przeklinać się" wprost do panelu, żeby cokolwiek zobaczyć. Przyczyna:
+odznaka liczyła `notifications.filter(n => !n.responded)` — a własny wpis
+z reakcją partnerki ma `responded = true` (to pole ustawia sama
+odpowiedź, nie to, czy AUTOR zdążył ją jeszcze zobaczyć), więc nigdy nie
+wpadał do licznika. Naprawione dodaniem osobnego pojęcia "obejrzane" dla
+tej kategorii: nowy magazyn `seenReplyIds` w IndexedDB (`lib/db.ts`,
+klucz `meta`), zasilany przez `markRepliesSeen()` wołane przy OTWARCIU
+panelu (nie zamknięciu) — dzwonek liczy teraz `(cudzy wpis bez odpowiedzi)
+LUB (mój wpis z reakcją, której jeszcze nie obejrzałem)`. Dwie różne
+odznaki tego samego dzwonka, czyszczone różnymi akcjami: cudzy wpis
+znika po TWOJEJ odpowiedzi, własny — po samym otwarciu panelu (nie trzeba
+nic dalej robić, to już nie wymaga Twojej akcji, tylko uwagi).
+
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż
 44px obszar dotyku — świadomie nie ruszone w tym audycie, bo te chipy
