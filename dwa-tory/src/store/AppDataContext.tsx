@@ -21,7 +21,7 @@ import {
   nextSlotIsOccupied,
 } from '../lib/goals';
 import { pullGoalsForOwner, pushGoal, pushGoalDelete, pushGoalMilestones } from '../lib/goalsSync';
-import { pullNotifications, pushNotification, replyToNotification } from '../lib/notificationsSync';
+import { deleteNotification, pullNotifications, pushNotification, replyToNotification } from '../lib/notificationsSync';
 import { disconnectPair, fetchMyPairing } from '../lib/pairing';
 import { playNotificationSound } from '../lib/sound';
 import { supabase } from '../lib/supabaseClient';
@@ -82,6 +82,10 @@ interface AppDataValue {
   updateProfile: (patch: Partial<Pick<Person, 'photo' | 'name'>>) => void;
   notifications: AppNotification[];
   sendReply: (notificationId: string, text: string) => void;
+  /** Swipe w prawo (jak w Wiadomościach) — realne usunięcie, znika obojgu (RLS + migracja 0011). */
+  removeNotification: (notificationId: string) => void;
+  /** Swipe w lewo (jak w Wiadomościach) — chowa TYLKO na tym urządzeniu, wpis zostaje w bazie dla partnerki (patrz lib/db.ts). */
+  archiveNotification: (notificationId: string) => void;
   /** Liczba do odznaki dzwonka — patrz markRepliesSeen. */
   unreadNotificationsCount: number;
   /** Woła Header/AppShell przy otwarciu panelu Powiadomień. */
@@ -207,6 +211,9 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   // przez to, czy AUTOR zdążył ją jeszcze zobaczyć (zgłoszenie: "trzeba było
   // przeklinać się do powiadomień, dzwonek nic nie pokazywał").
   const [seenReplyIds, setSeenReplyIds] = useState<Set<string>>(new Set());
+  // Id powiadomień zarchiwizowanych LOKALNIE (swipe w lewo, jak w
+  // Wiadomościach) — celowo nie w bazie, patrz lib/db.ts.
+  const [archivedNotificationIds, setArchivedNotificationIds] = useState<Set<string>>(new Set());
   const wasAllDone = useRef(false);
   // `null` = jeszcze nie wczytano żadnych powiadomień (pierwszy refresh po
   // zalogowaniu/sparowaniu) — dźwięk ma grać tylko dla NOWYCH powiadomień,
@@ -251,12 +258,13 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         void syncProfileToSupabase(person);
         await db.setCurrentUserId(userId);
 
-        const [myGoals, myTasks, savedSettings, allNotifications, seenReplies] = await Promise.all([
+        const [myGoals, myTasks, savedSettings, allNotifications, seenReplies, archivedIds] = await Promise.all([
           db.getGoalsForPerson(userId),
           db.getTasksForPerson(userId),
           db.getSettings(),
           db.getAllNotifications(),
           db.getSeenReplyIds(),
+          db.getArchivedNotificationIds(),
         ]);
         if (cancelled) return;
         setPeople({ [userId]: person });
@@ -265,6 +273,7 @@ export function AppDataProvider({ userId, children }: { userId: string; children
         setNotifications(allNotifications);
         setSettings(savedSettings ?? DEFAULT_SETTINGS);
         setSeenReplyIds(new Set(seenReplies));
+        setArchivedNotificationIds(new Set(archivedIds));
 
         // Dociąga/scala z Supabase w tle — appka już pokazuje dane lokalne,
         // to tylko dogania resztę (nowe urządzenie, zmiany zrobione offline gdzie indziej).
@@ -686,6 +695,19 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     );
   }, []);
 
+  /** Swipe w prawo (jak w Wiadomościach) — realne usunięcie z bazy (RLS: notifications_delete_pair), znika obojgu. */
+  const removeNotification = useCallback((notificationId: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    db.deleteNotification(notificationId).catch((e) => console.error('Nie udało się usunąć powiadomienia lokalnie', e));
+    void deleteNotification(notificationId).catch((e) => console.error('Nie udało się usunąć powiadomienia z Supabase', e));
+  }, []);
+
+  /** Swipe w lewo (jak w Wiadomościach) — celowo TYLKO lokalnie na tym urządzeniu, patrz lib/db.ts. */
+  const archiveNotification = useCallback((notificationId: string) => {
+    setArchivedNotificationIds((prev) => new Set(prev).add(notificationId));
+    void db.addArchivedNotificationIds([notificationId]).catch((e) => console.error('Nie udało się zarchiwizować powiadomienia', e));
+  }, []);
+
   /** Wołane przy otwarciu panelu Powiadomień — czyści odznakę dzwonka dla WŁASNYCH wpisów, które właśnie zobaczyłem (patrz seenReplyIds). */
   const markRepliesSeen = useCallback(() => {
     const ids = notifications.filter((n) => n.actorId === userId && n.reply).map((n) => n.id);
@@ -694,8 +716,11 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     void db.addSeenReplyIds(ids).catch((e) => console.error('Nie udało się zapisać obejrzanych reakcji', e));
   }, [notifications, userId]);
 
+  // Panel pokazuje tylko niezarchiwizowane (lokalnie, na tym urządzeniu) wpisy.
+  const visibleNotifications = notifications.filter((n) => !archivedNotificationIds.has(n.id));
+
   /** Dzwonek: partnerka czeka na odpowiedź (responded=false) LUB moje własne osiągnięcie dostało reakcję, której jeszcze nie widziałem. */
-  const unreadNotificationsCount = notifications.filter(
+  const unreadNotificationsCount = visibleNotifications.filter(
     (n) => (n.actorId !== userId && !n.responded) || (n.actorId === userId && n.reply && !seenReplyIds.has(n.id)),
   ).length;
 
@@ -763,8 +788,10 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     saveGoal,
     removeGoal,
     updateProfile,
-    notifications,
+    notifications: visibleNotifications,
     sendReply,
+    removeNotification,
+    archiveNotification,
     unreadNotificationsCount,
     markRepliesSeen,
     sendSelfTimeSignal,

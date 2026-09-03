@@ -217,6 +217,14 @@ export async function putNotification(n: AppNotification): Promise<void> {
   await db.put('notifications', n);
 }
 
+export async function deleteNotification(id: string): Promise<void> {
+  // Rzutowanie: idb ma precyzyjne przeciążenia per-store, MemoryStore ma
+  // uproszczone sygnatury generyczne — adapter godzi je jednym `any` tutaj,
+  // każda eksportowana funkcja i tak deklaruje precyzyjny typ zwracany.
+  const db = (await getDb()) as any;
+  await db.delete('notifications', id);
+}
+
 // --- meta (bieżący użytkownik urządzenia) ------------------------------
 
 export async function getCurrentUserId(): Promise<string | undefined> {
@@ -253,6 +261,28 @@ export async function addSeenReplyIds(ids: string[]): Promise<void> {
   const existing = await getSeenReplyIds();
   const merged = Array.from(new Set([...existing, ...ids]));
   await db.put('meta', JSON.stringify(merged), SEEN_REPLY_IDS_KEY);
+}
+
+// --- powiadomienia: "archiwizacja" (swipe w lewo, jak w Wiadomościach) —
+// celowo TYLKO lokalnie na tym urządzeniu, bez zmian w bazie: ma chować
+// wpis wyłącznie osobie, która go zarchiwizowała, nie obojgu naraz (to
+// odróżnia ją od swipe w prawo — realnego usunięcia, patrz deleteNotification
+// w notificationsSync.ts) ------------------------------------------------
+
+const ARCHIVED_NOTIFICATION_IDS_KEY = 'archivedNotificationIds';
+
+export async function getArchivedNotificationIds(): Promise<string[]> {
+  const db = (await getDb()) as any;
+  const raw = await db.get('meta', ARCHIVED_NOTIFICATION_IDS_KEY);
+  return raw ? (JSON.parse(raw) as string[]) : [];
+}
+
+export async function addArchivedNotificationIds(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = (await getDb()) as any;
+  const existing = await getArchivedNotificationIds();
+  const merged = Array.from(new Set([...existing, ...ids]));
+  await db.put('meta', JSON.stringify(merged), ARCHIVED_NOTIFICATION_IDS_KEY);
 }
 
 // --- inicjalizacja / seed --------------------------------------------------

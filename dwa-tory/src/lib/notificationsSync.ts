@@ -53,3 +53,9 @@ export async function replyToNotification(id: string, reply: string): Promise<vo
     .eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+/** Swipe w prawo (jak w Wiadomościach) — realne usunięcie, widoczne dla obojga (RLS: notifications_delete_pair, migracja 0011). */
+export async function deleteNotification(id: string): Promise<void> {
+  const { error } = await supabase.from('notifications').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}

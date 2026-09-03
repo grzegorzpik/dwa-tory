@@ -421,6 +421,46 @@ odznaki tego samego dzwonka, czyszczone różnymi akcjami: cudzy wpis
 znika po TWOJEJ odpowiedzi, własny — po samym otwarciu panelu (nie trzeba
 nic dalej robić, to już nie wymaga Twojej akcji, tylko uwagi).
 
+**Dodane — swipe po powiadomieniach (na wyraźną prośbę użytkownika,
+"analogicznie jak w Wiadomościach"):** wiersz w panelu Powiadomień da się
+teraz przeciągnąć poziomo palcem — w prawo usuwa, w lewo archiwizuje.
+Świadomie to DWIE różne operacje, nie warianty tej samej rzeczy:
+
+- **Swipe w prawo → usunięcie.** Realny `DELETE FROM notifications`
+  (`deleteNotification` w `lib/notificationsSync.ts`), zgodnie z nową
+  polityką RLS `notifications_delete_pair` (migracja
+  `supabase/migrations/0011_notifications_delete.sql` — **do uruchomienia
+  w SQL Editorze**, patrz treść niżej). Wpis znika z bazy dla OBOJGA —
+  uznane za akceptowalne, bo to już zdarzenia z historii (zrealizowany
+  kamień milowy, wysłana/otrzymana reakcja), nie coś, co druga strona
+  jeszcze potrzebuje zobaczyć.
+- **Swipe w lewo → archiwizacja.** Celowo TYLKO lokalnie, na tym
+  urządzeniu — nowy magazyn `archivedNotificationIds` w IndexedDB
+  (`lib/db.ts`, ten sam wzorzec co `seenReplyIds`), bez żadnego zapisu do
+  Supabase. Wpis znika z Twojego panelu, ale partnerka nadal go widzi —
+  to świadoma decyzja: appka nie ma sposobu odróżnić "chcę to schować
+  tylko sobie" od "chcę to usunąć obojgu", więc żeby uniknąć
+  przypadkowego chowania czegoś partnerce bez jej wiedzy, dzielimy to na
+  dwa gesty o wyraźnie różnym zasięgu (jak swipe w prawo/lewo w
+  Wiadomościach realnie różnią się akcją, nie tylko kierunkiem).
+
+Implementacja: nowy komponent `SwipeableNotificationRow` w
+`NotificationsPanel.tsx` — śledzi `touchmove` na żywo (przesunięcie do
+±160px), pod spodem odsłania czerwone tło z ikoną kosza (usuń) albo
+szare z ikoną archiwum (archiwizuj); po przekroczeniu 88px i puszczeniu
+palca wiersz "odlatuje" (200ms) i dopiero wtedy woła właściwą akcję.
+Próg wyżej niż przy pionowym zamykaniu panelu, żeby zwykłe dotknięcie
+chipsa odpowiedzi albo pola tekstowego w środku karty nigdy przypadkiem
+nie uruchomiło usunięcia.
+
+SQL do wklejenia w Supabase SQL Editor (migracja 0011):
+
+```sql
+create policy notifications_delete_pair on public.notifications for delete
+  to authenticated
+  using (pair_id = public.current_pair_id());
+```
+
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż
 44px obszar dotyku — świadomie nie ruszone w tym audycie, bo te chipy
