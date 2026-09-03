@@ -45,7 +45,7 @@ export async function pushNotification(pairId: string, actorId: string, text: st
   if (error) throw new Error(error.message);
 }
 
-/** Tylko odbiorca może odpowiedzieć (RLS: actor_id <> auth.uid()) — limit 5 słów egzekwowany po stronie klienta (lib/notifications.ts). */
+/** Tylko odbiorca może odpowiedzieć (RLS: actor_id <> auth.uid()) — limit słów (MAX_REPLY_WORDS) egzekwowany po stronie klienta (lib/notifications.ts). */
 export async function replyToNotification(id: string, reply: string): Promise<void> {
   const { error } = await supabase
     .from('notifications')

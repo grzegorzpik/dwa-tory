@@ -1,8 +1,9 @@
-// Logika odpowiedzi na powiadomienie (spec §5.8). Twardy limit 5 słów —
-// to ma być symboliczny gest docenienia, nie czat. Apka nie ma być
-// komunikatorem.
+// Logika odpowiedzi na powiadomienie (spec §5.8). Twardy limit słów —
+// to ma być krótki gest docenienia, nie czat. Apka nie ma być
+// komunikatorem. Spec proponował 5 słów; na wyraźną prośbę użytkownika
+// podniesiony do 20 (wciąż jedno zdanie, nie wymiana wiadomości).
 
-export const MAX_REPLY_WORDS = 5;
+export const MAX_REPLY_WORDS = 20;
 
 /** Formatuje ISO timestamp z Supabase (`notifications.created_at`) do krótkiego, czytelnego czasu względnego. */
 export function formatRelativeTime(iso: string): string {

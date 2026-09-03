@@ -14,7 +14,7 @@ Realizowana wg kolejności ze specyfikacji (§10), krok po kroku:
 - [x] 5. Kalendarz — Mój/Wiola/Wspólny, Tydzień/Miesiąc, Wspólna seria
 - [x] 6. Profil — statystyki, Twoja podróż, ustawienia, eksport danych
 - [x] 7. Backend — Supabase: schemat + RLS, logowanie (magic link/hasło), parowanie kont, sync celów (local-first + Realtime), wdrożenie na GitHub Pages
-- [x] 8. Powiadomienia — pełna logika panelu (chipy, limit 5 słów, odpowiedziane) + prawdziwy Web Push w tle (dokończone później, patrz "Push" niżej)
+- [x] 8. Powiadomienia — pełna logika panelu (chipy, limit słów na odpowiedź, odpowiedziane) + prawdziwy Web Push w tle (dokończone później, patrz "Push" niżej)
 - [x] 9. Onboarding + samouczek — imię/zdjęcie, status połączenia z partnerką, czas dla siebie, 4 karty funkcji, relaunch z Profilu
 - [x] 10. Integracja z kalendarzem telefonu — **wycofana** po czterech nieudanych próbach, patrz "Uwaga historyczna" niżej
 
@@ -32,7 +32,9 @@ projekcie Supabase, tak jak migracje). Przełącznik "Dźwięk" obok niego
 przy otwartej appce z żywym Realtime — to inny mechanizm niż Push, celowo
 nie scalony w jeden.
 
-Panel "Powiadomienia" (co partnerka zrobiła + odpowiedzi z limitem 5 słów)
+Panel "Powiadomienia" (co partnerka zrobiła + odpowiedzi z limitem słów —
+`MAX_REPLY_WORDS` w `lib/notifications.ts`, spec proponował 5, na
+wyraźną prośbę użytkownika podniesiony do 20)
 jest już realnie zsynchronizowany z tabelą `notifications`
 (`src/lib/notificationsSync.ts` + `AppDataContext`, pull + Realtime jak przy
 celach partnerki) — druga osoba w parze widzi Twoje odpowiedzi i odwrotnie.
