@@ -377,6 +377,34 @@ jest zdarzenie do skomentowania, tylko już otrzymana reakcja). Dane były
 cały czas w bazie — wystarczy odświeżyć appkę po tej poprawce, żeby
 istniejąca odpowiedź się pojawiła, bez potrzeby ręcznego SQL-a.
 
+**Uwaga architektoniczna (aktualizacja PWA na iOS):** po wdrożeniu
+powyższej poprawki użytkownik zgłosił, że mimo pomyślnego builda partnerka
+nadal nie widziała reakcji. Prawdopodobna przyczyna: standalone PWA na iOS
+trzymana "w tle" (przełączenie na inną appkę, powrót przez app switcher)
+często NIE jest ubijana przez system — wraca ten sam, już wcześniej
+załadowany kontekst JS, a nie świeże pobranie nowego builda. Nawet gdy
+`registerType: 'autoUpdate'` + `skipWaiting()`/`clientsClaim()` (patrz
+sekcja Push) poprawnie podmienią service worker w tle, JUŻ URUCHOMIONA
+strona nie dostaje nowego kodu, dopóki nie nastąpi realny, pełny
+reload/ponowne uruchomienie — samo przejście appka-w-tle → appka-z-powrotem
+tego nie gwarantuje. Żeby mieć pewność, że appka działa na najnowszym
+buildzie: **zamknij appkę całkowicie (przeciągnięcie w górę w przełączniku
+aplikacji), nie tylko zjedź do ekranu głównego**, i otwórz ją ponownie.
+
+**Dodane — popup na reakcję partnerki (na wyraźną prośbę użytkownika):**
+sam panel Powiadomień okazał się za łatwy do przeoczenia — trzeba było
+świadomie w niego wejść, więc nawet poprawna, widoczna odpowiedź mogła
+zostać niezauważona. Dodany `ReplyOverlay` (mirror `MilestoneOverlay` —
+te same klasy animacji `.milestone-overlay`/`.milestone-banner` z
+`index.css`, ten sam czas 3,4s), renderowany na poziomie `AppShell`
+(`App.tsx`), nie tylko wewnątrz Dziennika — łapie uwagę niezależnie od
+tego, na której zakładce akurat jest odbiorca. `AppDataContext` wykrywa
+NOWO nadeszłą reakcję na własne zdarzenie tym samym wzorcem co dźwięk
+powiadomień (`seenRepliedOwnIds`, ref zaczynający jako `null` — pierwsze
+ładowanie po zalogowaniu/aktualizacji appki nigdy nie odpala popupu dla
+całej istniejącej historii, tylko dla naprawdę nowych reakcji od tego
+momentu w przód).
+
 **Znalezione, niska priorytetowość, bez zmian:** `SelectChip` (chipy
 wyboru kadencji/dni w Kreatorze, widoków w Kalendarzu) ma mniejszy niż
 44px obszar dotyku — świadomie nie ruszone w tym audycie, bo te chipy

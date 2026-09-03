@@ -35,6 +35,12 @@ interface MilestoneCelebration {
   color: string;
 }
 
+interface ReplyCelebration {
+  /** Opis WŁASNEGO zdarzenia (np. "kończy etap „X” w „Y”"), tak jak zapisany w notifications.text. */
+  eventText: string;
+  reply: string;
+}
+
 interface AppDataValue {
   loading: boolean;
   currentUser: Person;
@@ -60,6 +66,8 @@ interface AppDataValue {
   celebrateAllDone: boolean;
   milestoneCelebration: MilestoneCelebration | null;
   dismissMilestoneCelebration: () => void;
+  replyCelebration: ReplyCelebration | null;
+  dismissReplyCelebration: () => void;
   markDone: (goalId: string, note: string) => void;
   undoDone: (goalId: string) => void;
   /** Zwraca true, jeśli slot jest zajęty i wymaga decyzji (ekran powinien pokazać dialog konfliktu). */
@@ -188,11 +196,16 @@ export function AppDataProvider({ userId, children }: { userId: string; children
   const [justCompleted, setJustCompleted] = useState(false);
   const [celebrateAllDone, setCelebrateAllDone] = useState(false);
   const [milestoneCelebration, setMilestoneCelebration] = useState<MilestoneCelebration | null>(null);
+  const [replyCelebration, setReplyCelebration] = useState<ReplyCelebration | null>(null);
   const wasAllDone = useRef(false);
   // `null` = jeszcze nie wczytano żadnych powiadomień (pierwszy refresh po
   // zalogowaniu/sparowaniu) — dźwięk ma grać tylko dla NOWYCH powiadomień,
   // nie dla całej istniejącej historii przy pierwszym załadowaniu.
   const seenNotificationIds = useRef<Set<string> | null>(null);
+  // Ten sam wzorzec co seenNotificationIds, ale dla WŁASNYCH wpisów, które
+  // dostały odpowiedź partnerki — napędza popup ReplyOverlay tylko dla
+  // NOWO nadeszłej reakcji, nie dla całej historii przy pierwszym ładowaniu.
+  const seenRepliedOwnIds = useRef<Set<string> | null>(null);
   // Ref zamiast bezpośrednio `settings.soundEnabled` w zależnościach
   // useCallback — inaczej przełączenie preferencji w Profilu resubskrybowałoby
   // kanał Realtime bez potrzeby.
@@ -369,6 +382,20 @@ export function AppDataProvider({ userId, children }: { userId: string; children
           playNotificationSound();
         }
         seenNotificationIds.current = partnerActionIds;
+
+        // Popup na reakcję partnerki (na wyraźną prośbę użytkownika — panel
+        // sam w sobie okazał się za łatwy do przeoczenia). Ten sam wzorzec
+        // "null = pierwsze ładowanie, nie odpalaj" co przy dźwięku — inaczej
+        // KAŻDA już wcześniej udzielona odpowiedź wyskakiwałaby jako popup
+        // przy pierwszym uruchomieniu appki po tej zmianie.
+        const ownRepliedIds = new Set(relevant.filter((n) => n.actorId === userId && n.reply).map((n) => n.id));
+        const previousOwnRepliedIds = seenRepliedOwnIds.current;
+        if (previousOwnRepliedIds !== null) {
+          const newlyReplied = relevant.find((n) => n.actorId === userId && n.reply && !previousOwnRepliedIds.has(n.id));
+          if (newlyReplied) setReplyCelebration({ eventText: newlyReplied.text, reply: newlyReplied.reply! });
+        }
+        seenRepliedOwnIds.current = ownRepliedIds;
+
         setNotifications(relevant);
         await Promise.all(relevant.map((n) => db.putNotification(n)));
       } catch (e) {
@@ -673,6 +700,14 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     return () => clearTimeout(t);
   }, [milestoneCelebration]);
 
+  const dismissReplyCelebration = useCallback(() => setReplyCelebration(null), []);
+
+  useEffect(() => {
+    if (!replyCelebration) return;
+    const t = setTimeout(() => setReplyCelebration(null), 3400);
+    return () => clearTimeout(t);
+  }, [replyCelebration]);
+
   const value: AppDataValue = {
     loading,
     currentUser,
@@ -692,6 +727,8 @@ export function AppDataProvider({ userId, children }: { userId: string; children
     celebrateAllDone,
     milestoneCelebration,
     dismissMilestoneCelebration,
+    replyCelebration,
+    dismissReplyCelebration,
     markDone,
     undoDone,
     requestMove,
